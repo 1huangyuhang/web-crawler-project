@@ -1,0 +1,124 @@
+// 导航栏样式文件
+
+// 导入变量和混合器
+@import './_variables';
+@import './_mixins';
+
+// 头部容器
+.navbar-header {
+  background-color: $background-color;
+  box-shadow: $shadow-sm;
+  padding: map-get($spacing, md) 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  
+  // 导航栏内容容器
+  .navbar-container {
+    @include container;
+    @include flex-between;
+  }
+  
+  // Logo 部分
+  .navbar-logo {
+    @include flex-center;
+    
+    .navbar-logo-link {
+      @include flex-center;
+      text-decoration: none;
+      
+      .navbar-logo-icon {
+        font-size: map-get($font-size, xl);
+        color: $primary-color;
+        margin-right: map-get($spacing, sm);
+      }
+      
+      .navbar-logo-text {
+        font-size: map-get($font-size, xl);
+        font-weight: bold;
+        color: $primary-color;
+      }
+    }
+  }
+  
+  // 桌面端导航
+  .navbar-desktop {
+    display: flex;
+    gap: map-get($spacing, xl);
+    
+    .navbar-link {
+      color: #374151;
+      text-decoration: none;
+      padding: map-get($spacing, sm) 0;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+      
+      &:hover {
+        border-bottom-color: $primary-color;
+        color: $primary-color;
+      }
+    }
+  }
+  
+  // 移动端菜单按钮
+  .navbar-mobile-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: map-get($spacing, sm);
+    border-radius: $border-radius-sm;
+    color: #374151;
+    display: none;
+    
+    &:hover {
+      background-color: #f3f4f6;
+    }
+  }
+  
+  // 移动端导航
+  .navbar-mobile {
+    padding: map-get($spacing, md);
+    background-color: $background-color;
+    border-top: 1px solid $border-color;
+    
+    .navbar-mobile-links {
+      display: flex;
+      flex-direction: column;
+      gap: map-get($spacing, sm);
+      
+      .navbar-mobile-link {
+        color: #374151;
+        text-decoration: none;
+        padding: map-get($spacing, sm) map-get($spacing, md);
+        border-radius: $border-radius-sm;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          background-color: #f3f4f6;
+          color: $primary-color;
+        }
+      }
+    }
+  }
+}
+
+// 响应式设计
+@include respond-to('md') {
+  .navbar-header {
+    .navbar-desktop {
+      display: none;
+    }
+    
+    .navbar-mobile-button {
+      display: block;
+    }
+  }
+}
+
+@include respond-to('lg') {
+  .navbar-header {
+    .navbar-mobile {
+      display: none !important;
+    }
+  }
+}

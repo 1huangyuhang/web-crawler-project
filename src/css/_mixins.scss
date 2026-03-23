@@ -1,0 +1,100 @@
+// 混合器文件
+
+// 导入变量
+@import './_variables';
+
+// 响应式媒体查询混合器
+@mixin respond-to($breakpoint) {
+  @if map-has-key($breakpoints, $breakpoint) {
+    $breakpoint-value: map-get($breakpoints, $breakpoint);
+    @media (max-width: $breakpoint-value) {
+      @content;
+    }
+  } @else {
+    @warn "Unknown breakpoint: #{$breakpoint}";
+  }
+}
+
+// 卡片样式混合器
+@mixin card-style {
+  background-color: #f9fafb;
+  border-radius: $border-radius-md;
+  box-shadow: $shadow-sm;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: $shadow-md;
+  }
+}
+
+// 容器样式混合器
+@mixin container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 map-get($spacing, md);
+}
+
+// 弹性布局混合器
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+// 弹性布局混合器 - 空间-between
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// 文本截断混合器
+@mixin truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// 按钮样式混合器
+@mixin button-style {
+  display: inline-block;
+  padding: map-get($spacing, sm) map-get($spacing, lg);
+  border-radius: $border-radius-md;
+  font-size: map-get($font-size, md);
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  
+  &:hover {
+    opacity: 0.9;
+  }
+  
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.3);
+  }
+}
+
+// 主按钮样式
+@mixin primary-button {
+  @include button-style;
+  background-color: $primary-color;
+  color: white;
+  
+  &:hover {
+    background-color: darken($primary-color, 10%);
+  }
+}
+
+// 次要按钮样式
+@mixin secondary-button {
+  @include button-style;
+  background-color: #f3f4f6;
+  color: $text-color;
+  
+  &:hover {
+    background-color: #e5e7eb;
+  }
+}

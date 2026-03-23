@@ -1,0 +1,366 @@
+// 爬虫功能页面样式文件
+
+// 导入变量和混合器
+@import './_variables';
+@import './_mixins';
+
+// 爬虫页面容器
+.crawler-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: map-get($spacing, 4xl) map-get($spacing, lg);
+}
+
+// 爬虫配置
+.crawler-config {
+  margin-top: map-get($spacing, 4xl);
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, 3xl);
+}
+
+// 爬虫配置部分
+.crawler-config-section {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  // 爬虫配置标题
+  .crawler-config-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+// 爬虫类型选项
+.crawler-type-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: map-get($spacing, lg);
+  
+  // 爬虫类型选项
+  .crawler-type-option {
+    display: flex;
+    align-items: center;
+    gap: map-get($spacing, sm);
+    
+    input[type="radio"] {
+      accent-color: $primary-color;
+    }
+    
+    label {
+      font-size: map-get($font-size, md);
+      color: $text-color;
+      cursor: pointer;
+    }
+  }
+}
+
+// 爬虫参数
+.crawler-params {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, lg);
+  
+  // 爬虫参数项
+  .crawler-param-item {
+    display: flex;
+    flex-direction: column;
+    gap: map-get($spacing, sm);
+    
+    // 标签容器
+    .crawler-param-label-container {
+      display: flex;
+      align-items: center;
+      gap: map-get($spacing, sm);
+      position: relative;
+      
+      label {
+        font-size: map-get($font-size, md);
+        color: $text-color;
+        font-weight: 500;
+      }
+      
+      // 提示工具
+      .crawler-tooltip {
+        position: relative;
+        display: inline-block;
+        
+        // 提示工具图标
+        .crawler-tooltip-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          background-color: #e5e7eb;
+          color: #6b7280;
+          border-radius: 50%;
+          font-size: 12px;
+          font-weight: 500;
+          cursor: help;
+          transition: all 0.2s ease;
+          
+          &:hover {
+            background-color: $primary-color;
+            color: white;
+          }
+        }
+        
+        // 提示工具文本
+        .crawler-tooltip-text {
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 250px;
+          background-color: #1f2937;
+          color: white;
+          padding: map-get($spacing, sm) map-get($spacing, md);
+          border-radius: $border-radius-md;
+          font-size: map-get($font-size, sm);
+          line-height: 1.4;
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.2s ease;
+          z-index: 1000;
+          margin-bottom: map-get($spacing, sm);
+          
+          // 三角形箭头
+          &::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 5px;
+            border-style: solid;
+            border-color: #1f2937 transparent transparent transparent;
+          }
+        }
+        
+        // 鼠标悬停显示提示
+        &:hover .crawler-tooltip-text {
+          opacity: 1;
+          visibility: visible;
+          bottom: calc(100% + 8px);
+        }
+      }
+    }
+    
+    input {
+      padding: map-get($spacing, sm) map-get($spacing, md);
+      border: 1px solid $border-color;
+      border-radius: $border-radius-md;
+      font-size: map-get($font-size, md);
+      
+      &:focus {
+        outline: none;
+        border-color: $primary-color;
+        box-shadow: 0 0 0 3px rgba($primary-color, 0.1);
+      }
+      
+      &:disabled {
+        background-color: #f3f4f6;
+        cursor: not-allowed;
+      }
+    }
+  }
+}
+
+// 爬虫控制
+.crawler-control {
+  display: flex;
+  gap: map-get($spacing, lg);
+  
+  // 爬虫开始按钮
+  .crawler-start-button {
+    @include primary-button;
+    flex: 1;
+  }
+  
+  // 爬虫重置按钮
+  .crawler-reset-button {
+    @include secondary-button;
+    flex: 1;
+  }
+}
+
+// 爬取进度
+.crawler-progress {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  animation: fadeIn 0.5s ease-in-out;
+  
+  // 爬取进度标题
+  .crawler-progress-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+  
+  // 爬取进度内容
+  .crawler-progress-content {
+    display: flex;
+    flex-direction: column;
+    gap: map-get($spacing, md);
+  }
+  
+  // 爬取进度条容器
+  .crawler-progress-bar-container {
+    width: 100%;
+    height: 20px;
+    background-color: #e5e7eb;
+    border-radius: $border-radius-full;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  
+  // 爬取进度条
+  .crawler-progress-bar {
+    height: 100%;
+    background-color: $primary-color;
+    border-radius: $border-radius-full;
+    transition: width 0.3s ease-in-out;
+    background-image: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.15) 0%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(255, 255, 255, 0.15) 100%
+    );
+    background-size: 200% 100%;
+    animation: progressBar 2s ease-in-out infinite;
+  }
+  
+  // 爬取进度信息
+  .crawler-progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: map-get($spacing, lg);
+    
+    // 爬取进度百分比
+    .crawler-progress-percentage {
+      font-size: map-get($font-size, md);
+      font-weight: 500;
+      color: $primary-color;
+      min-width: 50px;
+    }
+    
+    // 爬取进度URL
+    .crawler-progress-url {
+      flex: 1;
+      font-size: map-get($font-size, sm);
+      color: $text-secondary-color;
+      word-break: break-all;
+      line-height: 1.4;
+    }
+  }
+}
+
+// 动画
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes progressBar {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+// 爬虫结果
+.crawler-result {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  // 爬虫结果标题
+  .crawler-result-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+// 爬虫结果内容
+.crawler-result-content {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, lg);
+  
+  // 爬虫结果项
+  .crawler-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+    
+    // 爬虫结果标签
+    .crawler-result-label {
+      font-size: map-get($font-size, md);
+      color: $text-secondary-color;
+      font-weight: 500;
+    }
+    
+    // 爬虫结果值
+    .crawler-result-value {
+      font-size: map-get($font-size, md);
+      color: $text-color;
+      font-weight: 500;
+    }
+  }
+  
+  // 爬虫结果操作
+  .crawler-result-action {
+    display: flex;
+    justify-content: center;
+    margin-top: map-get($spacing, lg);
+    
+    // 爬虫分析按钮
+    .crawler-analyze-button {
+      @include primary-button;
+    }
+  }
+}
+
+// 响应式设计
+@include respond-to('md') {
+  .crawler-page {
+    padding: map-get($spacing, xl) map-get($spacing, sm);
+  }
+  
+  .crawler-control {
+    flex-direction: column;
+  }
+  
+  .crawler-type-options {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

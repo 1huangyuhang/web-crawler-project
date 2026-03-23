@@ -1,0 +1,27 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = "postgresql://crawler_user:crawler_password@localhost:5432/crawler_db"
+}
+
+model CrawlHistory {
+  id        Int      @id @default(autoincrement())
+  crawlId   String   @unique @map("crawl_id")
+  timestamp BigInt
+  url       String
+  type      String
+  depth     Int
+  items     Int
+  time      Float   @map("time")
+  data      Json?
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("crawl_history")
+}

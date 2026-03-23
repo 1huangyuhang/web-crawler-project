@@ -1,0 +1,293 @@
+// 首页组件样式文件
+
+// 导入变量和混合器
+@import './_variables';
+@import './_mixins';
+
+// 技能卡片组件
+.skill-card {
+  @include card-style;
+  text-align: center;
+  padding: map-get($spacing, xl);
+  
+  // 技能卡片图标
+  .skill-card-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    @include flex-center;
+    margin: 0 auto map-get($spacing, lg);
+    
+    i {
+      font-size: 2rem;
+    }
+  }
+  
+  // 技能卡片标题
+  .skill-card-title {
+    font-size: map-get($font-size, lg);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, sm);
+    color: $text-color;
+  }
+  
+  // 技能卡片描述
+  .skill-card-description {
+    color: $text-secondary-color;
+    font-size: map-get($font-size, sm);
+  }
+}
+
+// 技能部分组件
+.skills-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: map-get($spacing, xl);
+}
+
+// 页面标题和装饰线组件
+.hero-section {
+  text-align: center;
+  margin-bottom: map-get($spacing, 4xl);
+  
+  // 页面标题
+  .hero-title {
+    font-size: map-get($font-size, 5xl);
+    font-weight: 300;
+    margin-bottom: map-get($spacing, md);
+    color: $text-color;
+  }
+  
+  // 装饰线
+  .hero-divider {
+    width: 60px;
+    height: 2px;
+    background-color: $primary-color;
+    margin: 0 auto map-get($spacing, xl);
+  }
+}
+
+// 个人介绍组件
+.about-me {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  margin-bottom: map-get($spacing, xl);
+  box-shadow: $shadow-sm;
+  
+  // 个人介绍标题
+  .about-me-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+  }
+  
+  // 个人介绍文本
+  .about-me-text {
+    font-size: map-get($font-size, lg);
+    line-height: 1.75;
+    color: $text-secondary-color;
+    margin-bottom: map-get($spacing, lg);
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// 页脚组件
+.footer {
+  background-color: #f9fafb;
+  padding: map-get($spacing, xl) map-get($spacing, lg);
+  text-align: center;
+  margin-top: map-get($spacing, 4xl);
+  border-top: 1px solid $border-color;
+  
+  // 页脚文本
+  .footer-text {
+    color: $text-secondary-color;
+    font-size: map-get($font-size, sm);
+  }
+}
+
+// 首页内容组件
+.home-content {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: map-get($spacing, 4xl) map-get($spacing, lg);
+}
+
+// 爬虫首页容器
+.crawler-home {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: map-get($spacing, 4xl) map-get($spacing, lg);
+}
+
+// 爬虫功能
+.crawler-features {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, 4xl);
+}
+
+// 爬虫功能部分
+.crawler-feature-section {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  // 爬虫功能标题
+  .crawler-feature-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+// 爬虫功能列表
+.crawler-feature-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: map-get($spacing, 2xl);
+}
+
+// 爬虫功能项
+.crawler-feature-item {
+  display: flex;
+  gap: map-get($spacing, lg);
+  align-items: flex-start;
+  
+  // 爬虫功能图标
+  .crawler-feature-icon {
+    font-size: 2.5rem;
+    flex: 0 0 auto;
+  }
+  
+  // 爬虫功能内容
+  .crawler-feature-content {
+    flex: 1;
+    
+    // 爬虫功能名称
+    .crawler-feature-name {
+      font-size: map-get($font-size, lg);
+      font-weight: 500;
+      margin-bottom: map-get($spacing, sm);
+      color: $text-color;
+    }
+    
+    // 爬虫功能描述
+    .crawler-feature-description {
+      font-size: map-get($font-size, md);
+      color: $text-secondary-color;
+      line-height: 1.5;
+    }
+  }
+}
+
+// 爬虫使用说明
+.crawler-instructions {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  // 爬虫使用说明标题
+  .crawler-instructions-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+// 爬虫使用说明列表
+.crawler-instructions-list {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, 2xl);
+}
+
+// 爬虫使用说明项
+.crawler-instruction-item {
+  display: flex;
+  gap: map-get($spacing, lg);
+  align-items: flex-start;
+  
+  // 爬虫使用说明步骤
+  .crawler-instruction-step {
+    flex: 0 0 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: $primary-color;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: map-get($font-size, md);
+    font-weight: 500;
+  }
+  
+  // 爬虫使用说明文本
+  .crawler-instruction-text {
+    flex: 1;
+    font-size: map-get($font-size, md);
+    color: $text-secondary-color;
+    line-height: 1.5;
+    padding-top: map-get($spacing, xs);
+  }
+}
+
+// 响应式设计
+@include respond-to('md') {
+  .home-content {
+    padding: map-get($spacing, xl) map-get($spacing, sm);
+  }
+  
+  .crawler-home {
+    padding: map-get($spacing, xl) map-get($spacing, sm);
+  }
+  
+  .hero-section {
+    .hero-title {
+      font-size: map-get($font-size, 4xl);
+    }
+  }
+  
+  .about-me {
+    padding: map-get($spacing, lg);
+  }
+  
+  .skill-card {
+    padding: map-get($spacing, lg);
+  }
+  
+  .crawler-feature-section,
+  .crawler-instructions {
+    padding: map-get($spacing, lg);
+  }
+  
+  .crawler-feature-list {
+    grid-template-columns: 1fr;
+  }
+  
+  .crawler-feature-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .crawler-instruction-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+}
+

@@ -1,0 +1,133 @@
+// 设置页面样式文件
+
+// 导入变量和混合器
+@import './_variables';
+@import './_mixins';
+
+// 设置页面容器
+.settings-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: map-get($spacing, 4xl) map-get($spacing, lg);
+}
+
+// 设置内容
+.settings-content {
+  margin-top: map-get($spacing, 4xl);
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, 3xl);
+}
+
+// 设置部分
+.settings-section {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  // 设置部分标题
+  .settings-section-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+}
+
+// 设置表单
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, lg);
+  
+  // 设置表单项
+  .settings-form-item {
+    display: flex;
+    flex-direction: column;
+    gap: map-get($spacing, sm);
+    
+    label {
+      font-size: map-get($font-size, md);
+      color: $text-color;
+      font-weight: 500;
+    }
+    
+    input {
+      padding: map-get($spacing, sm) map-get($spacing, md);
+      border: 1px solid $border-color;
+      border-radius: $border-radius-md;
+      font-size: map-get($font-size, md);
+      
+      &:focus {
+        outline: none;
+        border-color: $primary-color;
+        box-shadow: 0 0 0 3px rgba($primary-color, 0.1);
+      }
+    }
+  }
+}
+
+// 设置操作
+.settings-actions {
+  display: flex;
+  gap: map-get($spacing, lg);
+  margin-top: map-get($spacing, 2xl);
+  
+  // 设置保存按钮
+  .settings-save-button {
+    @include primary-button;
+    flex: 1;
+  }
+  
+  // 设置重置按钮
+  .settings-reset-button {
+    @include secondary-button;
+    flex: 1;
+  }
+}
+
+// 关于信息
+.settings-about {
+  background-color: #f9fafb;
+  padding: map-get($spacing, 2xl);
+  border-radius: $border-radius-lg;
+  box-shadow: $shadow-sm;
+  
+  // 关于标题
+  .settings-about-title {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 500;
+    margin-bottom: map-get($spacing, lg);
+    color: $text-color;
+    padding-bottom: map-get($spacing, sm);
+    border-bottom: 1px solid $border-color;
+  }
+  
+  // 关于内容
+  .settings-about-content {
+    display: flex;
+    flex-direction: column;
+    gap: map-get($spacing, sm);
+    
+    // 关于文本
+    .settings-about-text {
+      font-size: map-get($font-size, md);
+      color: $text-secondary-color;
+      line-height: 1.6;
+    }
+  }
+}
+
+// 响应式设计
+@include respond-to('md') {
+  .settings-page {
+    padding: map-get($spacing, xl) map-get($spacing, sm);
+  }
+  
+  .settings-actions {
+    flex-direction: column;
+  }
+}

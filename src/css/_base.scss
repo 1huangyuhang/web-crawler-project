@@ -1,0 +1,126 @@
+// 基础样式文件
+
+// 导入变量
+@import './_variables';
+
+// 重置样式
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+// 全局样式
+html {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  font-family: $font-family;
+  font-size: map-get($font-size, md);
+  color: $text-color;
+  background-color: $background-color;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// 标题样式
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+  line-height: 1.2;
+  margin-bottom: map-get($spacing, md);
+  color: $text-color;
+}
+
+h1 {
+  font-size: map-get($font-size, 5xl);
+}
+
+h2 {
+  font-size: map-get($font-size, 2xl);
+}
+
+h3 {
+  font-size: map-get($font-size, xl);
+}
+
+// 段落样式
+p {
+  margin-bottom: map-get($spacing, md);
+  color: $text-secondary-color;
+}
+
+// 链接样式
+a {
+  color: $primary-color;
+  text-decoration: none;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+// 列表样式
+ul, ol {
+  margin-bottom: map-get($spacing, md);
+  padding-left: map-get($spacing, xl);
+}
+
+li {
+  margin-bottom: map-get($spacing, xs);
+}
+
+// 图片样式
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+// 按钮基础样式
+button {
+  font-family: inherit;
+  font-size: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+// 输入框基础样式
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-sm;
+  padding: map-get($spacing, sm) map-get($spacing, md);
+  
+  &:focus {
+    outline: none;
+    border-color: $primary-color;
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.1);
+  }
+}
+
+// 代码样式
+code {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.875em;
+  background-color: #f3f4f6;
+  padding: 0.125rem 0.25rem;
+  border-radius: $border-radius-sm;
+}
+
+// 预格式化文本
+pre {
+  background-color: #f3f4f6;
+  padding: map-get($spacing, md);
+  border-radius: $border-radius-md;
+  overflow-x: auto;
+  margin-bottom: map-get($spacing, md);
+  
+  code {
+    background: none;
+    padding: 0;
+  }
+}
