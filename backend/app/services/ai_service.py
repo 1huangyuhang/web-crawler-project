@@ -3,11 +3,8 @@ AI service: natural language to SQL via DeepSeek, with validation and chart sugg
 """
 
 import re
-import json
 import logging
 import httpx
-from typing import Any
-from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -87,27 +84,33 @@ SYSTEM_PROMPT = """你是一个专业的 PostgreSQL SQL 生成助手。用户会
 """
 
 
-async def generate_sql(question: str) -> str:
-    """Call DeepSeek API to convert natural language to SQL."""
-    settings = get_settings()
-    if not settings.DEEPSEEK_API_KEY:
-        raise ValueError("DEEPSEEK_API_KEY 未配置。请在 backend/.env 中设置。")
+async def generate_sql(
+    question: str,
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+) -> str:
+    """Call an OpenAI-compatible chat completions API to convert natural language to SQL."""
+    if not api_key or not api_key.strip():
+        raise ValueError("API Key 为空，请检查模型供应商配置或环境变量 DEEPSEEK_API_KEY。")
 
+    url = f"{base_url.rstrip('/')}/chat/completions"
     schema = get_schema_description()
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT.format(schema=schema)},
         {"role": "user", "content": question},
     ]
 
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
-            f"{settings.DEEPSEEK_BASE_URL}/chat/completions",
+            url,
             headers={
-                "Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}",
+                "Authorization": f"Bearer {api_key.strip()}",
                 "Content-Type": "application/json",
             },
             json={
-                "model": "deepseek-chat",
+                "model": model.strip(),
                 "messages": messages,
                 "temperature": 0,
                 "max_tokens": 1024,

@@ -1,5 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, ClipboardList, Copy, Search, Trash2, X } from 'lucide-react';
 import { crawlerApi } from '../../services/api';
+import { CrawlerTypeIcon } from '../../components/CrawlerTypeIcon';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -18,11 +21,26 @@ interface CrawlHistoryItem {
 type SortField = 'timestamp' | 'items' | 'time';
 type FilterType = 'all' | 'link' | 'content' | 'image';
 
-const TYPE_MAP: Record<string, { icon: string; label: string }> = {
-  link:    { icon: '🔗', label: '链接爬虫' },
-  content: { icon: '📄', label: '内容爬虫' },
-  image:   { icon: '🖼️', label: '图片爬虫' },
+const TYPE_MAP: Record<string, { label: string }> = {
+  link:    { label: '链接爬虫' },
+  content: { label: '内容爬虫' },
+  image:   { label: '图片爬虫' },
 };
+
+/** 与 mobile-ui.css 断点一致 */
+function useMatchMedia(query: string): boolean {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [query]);
+  return matches;
+}
 
 function fmt(s: number) { return s < 1 ? '< 1s' : s < 60 ? `${s.toFixed(1)}s` : `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`; }
 function fmtDate(ts: number) { return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); }
@@ -159,37 +177,340 @@ function Pagination({ page, total, pageSize, onChange }: {
 
 // ─── Preview Sidebar ────────────────────────────────────────────────────────
 
-function PreviewSidebar({ row, onClose }: { row: any; onClose: () => void }) {
-  const json = JSON.stringify(row, null, 2);
-  const entries = Object.entries(row || {});
+const PREVIEW_KEY_ORDER = [
+  'url', 'link_url', 'image_url', 'title', 'alt', 'depth', 'content', 'keywords', 'meta', 'description', 'body', 'text',
+];
+
+const PREVIEW_LABELS: Record<string, string> = {
+  url: '链接',
+  link_url: '链接',
+  image_url: '图片地址',
+  title: '标题',
+  alt: '说明',
+  depth: '深度',
+  content: '正文',
+  body: '正文',
+  text: '文本',
+  description: '描述',
+  keywords: '关键词',
+  meta: '元数据',
+};
+
+function previewEntrySortKey(k: string): number {
+  const i = PREVIEW_KEY_ORDER.indexOf(k);
+  return i === -1 ? 500 + k.charCodeAt(0) : i;
+}
+
+function PreviewFieldBlock({ fieldKey, value }: { fieldKey: string; value: unknown }) {
+  const label = PREVIEW_LABELS[fieldKey] || fieldKey.replace(/_/g, ' ');
+  const str = typeof value === 'string' ? value : null;
+  const isHttpUrl =
+    str &&
+    /^https?:\/\//i.test(str) &&
+    (fieldKey === 'url' || fieldKey === 'link_url' || fieldKey === 'image_url' || fieldKey.endsWith('_url'));
+  const isLongPlain =
+    str &&
+    (fieldKey === 'content' || fieldKey === 'body' || fieldKey === 'text' || fieldKey === 'description') &&
+    str.length > 80;
+
+  let inner: ReactNode;
+  if (isHttpUrl && str) {
+    inner = (
+      <div className="preview-sidebar__link-box">
+        <a
+          href={str}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="preview-sidebar__link font-medium break-all"
+          style={{ color: 'var(--color-brand-400)' }}
+        >
+          {str}
+        </a>
+      </div>
+    );
+  } else if (isLongPlain && str) {
+    inner = <div className="preview-sidebar__content-scroll">{str}</div>;
+  } else if (value !== null && typeof value === 'object') {
+    inner = <pre className="preview-sidebar__pre">{JSON.stringify(value, null, 2)}</pre>;
+  } else {
+    inner = <p className="preview-sidebar__plain break-words m-0">{String(value ?? '')}</p>;
+  }
 
   return (
-    <div className="absolute inset-0 z-10 flex">
-      <div className="flex-1" style={{ background: 'rgba(0,0,0,0.3)' }} onClick={onClose} />
-      <div className="w-80 h-full flex flex-col overflow-hidden" style={{ background: 'var(--c-bg-card)', borderLeft: '1px solid var(--c-border)' }}>
-        <div className="flex items-center justify-between p-3 border-b shrink-0" style={{ borderColor: 'var(--c-border)' }}>
-          <span className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>数据预览</span>
-          <div className="flex gap-1">
-            <button className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', fontSize: '10px' }}
-              onClick={() => { navigator.clipboard.writeText(json); }}>复制 JSON</button>
-            <button className="btn btn-ghost btn-sm" onClick={onClose} style={{ padding: '2px 6px', fontSize: '11px' }}>✕</button>
-          </div>
+    <section className="preview-sidebar__field" data-preview-field={fieldKey}>
+      <h3 className="preview-sidebar__label">{label}</h3>
+      <div className="preview-sidebar__value">{inner}</div>
+    </section>
+  );
+}
+
+const PREVIEW_GROUP_PRIMARY = new Set(['url', 'link_url', 'image_url', 'title', 'alt', 'depth']);
+const PREVIEW_GROUP_BODY = new Set(['content', 'body', 'text', 'description']);
+const PREVIEW_GROUP_META = new Set(['keywords', 'meta']);
+
+/** Web：在预览遮罩（红框外）上滚轮时，把位移作用到预览抽屉内的滚动区（红框内正文列表） */
+function applyWheelToPreviewBody(bodyEl: HTMLElement | null, deltaY: number): void {
+  if (!bodyEl) return;
+  const { scrollTop, scrollHeight, clientHeight } = bodyEl;
+  const max = scrollHeight - clientHeight;
+  if (max <= 1) return;
+  bodyEl.scrollTop = Math.max(0, Math.min(max, scrollTop + deltaY));
+}
+
+function groupPreviewEntries(sorted: [string, unknown][]) {
+  const primary: [string, unknown][] = [];
+  const body: [string, unknown][] = [];
+  const meta: [string, unknown][] = [];
+  const other: [string, unknown][] = [];
+  for (const e of sorted) {
+    const k = e[0];
+    if (PREVIEW_GROUP_PRIMARY.has(k)) primary.push(e);
+    else if (PREVIEW_GROUP_BODY.has(k)) body.push(e);
+    else if (PREVIEW_GROUP_META.has(k)) meta.push(e);
+    else other.push(e);
+  }
+  return { primary, body, meta, other };
+}
+
+function PreviewSidebar({ row, onClose }: { row: any; onClose: () => void }) {
+  const json = JSON.stringify(row, null, 2);
+  const [copied, setCopied] = useState(false);
+  const previewRootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previewBodyRef = useRef<HTMLDivElement>(null);
+  const [sheetDragY, setSheetDragY] = useState(0);
+  const [sheetDragging, setSheetDragging] = useState(false);
+  const sortedEntries = useMemo(() => {
+    return Object.entries(row || {}).sort(
+      ([a], [b]) => previewEntrySortKey(a) - previewEntrySortKey(b) || a.localeCompare(b),
+    );
+  }, [row]);
+
+  const groups = useMemo(() => groupPreviewEntries(sortedEntries), [sortedEntries]);
+
+  const headline = useMemo(() => {
+    const t = row?.title;
+    const a = row?.alt;
+    if (typeof t === 'string' && t.trim()) return t.trim();
+    if (typeof a === 'string' && a.trim()) return a.trim();
+    return null;
+  }, [row]);
+
+  const copyJson = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(json);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      /* ignore */
+    }
+  }, [json]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767.98px)');
+    const syncBody = () => {
+      if (mq.matches) document.body.style.overflow = 'hidden';
+      else document.body.style.overflow = '';
+    };
+    syncBody();
+    mq.addEventListener('change', syncBody);
+    return () => {
+      mq.removeEventListener('change', syncBody);
+      document.body.style.overflow = '';
+    };
+  }, []);
+
+  /**
+   * 移动端：顶部拖条 + 左右边缘窄条上「下滑」关闭 Bottom Sheet（同一套阻尼与阈值）
+   */
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const nodes = panel.querySelectorAll<HTMLElement>('.preview-sidebar__sheet-drag');
+    if (nodes.length === 0) return;
+
+    let startY = 0;
+    let active = false;
+
+    const isMobile = () => window.matchMedia('(max-width: 767.98px)').matches;
+
+    const onStart = (e: TouchEvent) => {
+      if (!isMobile() || e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+      active = true;
+      setSheetDragging(true);
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (!active || !isMobile() || e.touches.length !== 1) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0) {
+        const rubber = Math.min(dy * 0.72, window.innerHeight * 0.45);
+        setSheetDragY(rubber);
+        e.preventDefault();
+      }
+    };
+
+    const finish = (e: TouchEvent) => {
+      if (!active) return;
+      active = false;
+      setSheetDragging(false);
+      const endY = e.changedTouches[0]?.clientY ?? startY;
+      const dy = endY - startY;
+      const shouldClose = isMobile() && dy > 96;
+      setSheetDragY(0);
+      if (shouldClose) onClose();
+    };
+
+    nodes.forEach((el) => {
+      el.addEventListener('touchstart', onStart, { passive: true });
+      el.addEventListener('touchmove', onMove, { passive: false });
+      el.addEventListener('touchend', finish);
+      el.addEventListener('touchcancel', finish);
+    });
+    return () => {
+      nodes.forEach((el) => {
+        el.removeEventListener('touchstart', onStart);
+        el.removeEventListener('touchmove', onMove);
+        el.removeEventListener('touchend', finish);
+        el.removeEventListener('touchcancel', finish);
+      });
+    };
+  }, [onClose, row]);
+
+  /**
+   * Web：捕获阶段 + non-passive，保证滚轮只进预览正文区或被我方消费，绝不链式滚动背后页面
+   *（React 合成 onWheel 常为 passive，无法可靠 preventDefault）
+   */
+  useEffect(() => {
+    const root = previewRootRef.current;
+    if (!root) return;
+
+    const onWheelCapture = (e: WheelEvent) => {
+      if (!window.matchMedia('(min-width: 768px)').matches) return;
+      const body = previewBodyRef.current;
+      if (!body) return;
+      const t = e.target;
+      if (t instanceof Node && body.contains(t)) return;
+      applyWheelToPreviewBody(body, e.deltaY);
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    root.addEventListener('wheel', onWheelCapture, { capture: true, passive: false });
+    return () => root.removeEventListener('wheel', onWheelCapture, true);
+  }, [row]);
+
+  const renderChunk = (title: string, id: string, entries: [string, unknown][], grid: boolean) => {
+    if (entries.length === 0) return null;
+    return (
+      <section className="preview-sidebar__chunk" aria-labelledby={id}>
+        <h3 id={id} className="preview-sidebar__chunk-title">
+          {title}
+        </h3>
+        <div className={grid ? 'preview-sidebar__summary-grid' : 'preview-sidebar__chunk-fields'}>
+          {entries.map(([k, v]) => (
+            <PreviewFieldBlock key={k} fieldKey={k} value={v} />
+          ))}
         </div>
-        <div className="flex-1 overflow-y-auto p-3">
-          <div className="flex flex-col gap-2">
-            {entries.map(([k, v]) => (
-              <div key={k}>
-                <div className="text-[10px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: 'var(--c-text-muted)' }}>{k}</div>
-                <div className="text-xs break-all leading-relaxed" style={{ color: 'var(--c-text)' }}>
-                  {typeof v === 'object' ? JSON.stringify(v) : String(v ?? '')}
-                </div>
-              </div>
-            ))}
+      </section>
+    );
+  };
+
+  const panelMotionStyle: CSSProperties = {
+    transform: sheetDragY > 0 ? `translateY(${sheetDragY}px)` : undefined,
+    transition: sheetDragging ? 'none' : 'transform 0.34s cubic-bezier(0.32, 0.72, 0, 1)',
+    willChange: sheetDragging ? 'transform' : undefined,
+  };
+
+  const shell = (
+    <div ref={previewRootRef} className="preview-sidebar" role="presentation">
+      <button
+        type="button"
+        className="preview-sidebar__backdrop"
+        onClick={onClose}
+        aria-label="关闭预览"
+      />
+      <div
+        ref={panelRef}
+        className="preview-sidebar__panel relative"
+        style={panelMotionStyle}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preview-sidebar-title"
+        aria-describedby={headline ? 'preview-sidebar-desc' : undefined}
+      >
+        <div className="preview-sidebar__sheet-handle preview-sidebar__sheet-drag md:hidden" aria-hidden>
+          <span className="preview-sidebar__sheet-pill" />
+        </div>
+        <div className="preview-sidebar__sheet-edge preview-sidebar__sheet-edge--left preview-sidebar__sheet-drag md:hidden" aria-hidden />
+        <div className="preview-sidebar__sheet-edge preview-sidebar__sheet-edge--right preview-sidebar__sheet-drag md:hidden" aria-hidden />
+        <header
+          className="preview-sidebar__header relative z-[6] flex w-full shrink-0 items-start gap-3 border-b px-4 py-3 md:z-auto md:px-5 md:py-4"
+          style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg-raised)' }}
+        >
+          <div className="flex min-w-0 flex-1 items-start gap-2 md:gap-3">
+            {/* 移动端 Bottom Sheet：左侧单一关闭（向下箭头暗示收起），避免与 ✕ 重复 */}
+            <button
+              type="button"
+              className="preview-sidebar__btn-close-sheet btn btn-ghost inline-flex shrink-0 items-center justify-center md:hidden"
+              onClick={onClose}
+              aria-label="关闭预览"
+            >
+              <ChevronDown size={22} strokeWidth={2} aria-hidden />
+            </button>
+            <div className="preview-sidebar__header-lead min-w-0 flex-1">
+              <h2
+                id="preview-sidebar-title"
+                className="text-sm font-semibold tracking-tight md:text-base"
+                style={{ color: 'var(--c-text)' }}
+              >
+                数据预览
+              </h2>
+              {headline ? (
+                <p id="preview-sidebar-desc" className="preview-sidebar__header-kicker mt-1 line-clamp-2 text-xs leading-snug md:text-[13px]" style={{ color: 'var(--c-text-secondary)' }}>
+                  {headline}
+                </p>
+              ) : null}
+            </div>
           </div>
+          <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
+            <button type="button" className="preview-sidebar__btn-copy btn btn-secondary btn-sm inline-flex items-center gap-1.5" onClick={() => void copyJson()}>
+              <Copy size={16} strokeWidth={2} aria-hidden />
+              {copied ? '已复制' : '复制 JSON'}
+            </button>
+            <button
+              type="button"
+              className="preview-sidebar__btn-close preview-sidebar__btn-close--desktop btn btn-ghost hidden items-center justify-center md:flex"
+              onClick={onClose}
+              aria-label="关闭"
+            >
+              <X size={22} strokeWidth={2} aria-hidden />
+            </button>
+          </div>
+        </header>
+        <div
+          ref={previewBodyRef}
+          className="preview-sidebar__body min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 md:px-5 md:py-4"
+        >
+          {renderChunk('概要', 'preview-sec-summary', groups.primary, true)}
+          {renderChunk('正文与摘要', 'preview-sec-body', groups.body, false)}
+          {renderChunk('结构化数据', 'preview-sec-meta', groups.meta, false)}
+          {renderChunk('其他字段', 'preview-sec-other', groups.other, false)}
         </div>
       </div>
     </div>
   );
+
+  return createPortal(shell, document.body);
 }
 
 // ─── Detail Panel (Enterprise) ──────────────────────────────────────────────
@@ -197,11 +518,14 @@ function PreviewSidebar({ row, onClose }: { row: any; onClose: () => void }) {
 function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () => void }) {
   const t = TYPE_MAP[item.type] || TYPE_MAP.link;
   const allData: any[] = Array.isArray(item.data) ? item.data : [];
+  const isNarrow = useMatchMedia('(max-width: 767.98px)');
 
   const [search, setSearch] = useState('');
   const [domainFilter, setDomainFilter] = useState('all');
   const [depthFilter, setDepthFilter] = useState<number | 'all'>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  const [viewMode, setViewMode] = useState<ViewMode>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 767.98px)').matches ? 'list' : 'table',
+  );
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -260,18 +584,26 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
   useEffect(() => { setPage(1); setSelected(new Set()); }, [search, domainFilter, depthFilter, pageSize]);
 
   return (
-    <div className="card overflow-hidden h-full flex flex-col relative">
+    <div className="detail-panel card relative flex h-full min-h-0 flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b shrink-0" style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg-raised)' }}>
-        <h2 className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>{t.icon} {t.label}详情</h2>
-        <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+      <div className="flex items-center justify-between gap-2 p-3 border-b shrink-0" style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg-raised)' }}>
+        <h2 className="text-sm font-semibold min-w-0 truncate inline-flex items-center gap-2" style={{ color: 'var(--c-text)' }}>
+          <span className="inline-flex shrink-0 items-center justify-center rounded-md" style={{ width: '1.75rem', height: '1.75rem', background: 'var(--c-bg-input)', border: '1px solid var(--c-border)' }}>
+            <CrawlerTypeIcon type={item.type} size={14} />
+          </span>
+          <span className="truncate">{t.label}详情</span>
+        </h2>
+        <div className="flex items-center gap-1 shrink-0">
+          <button type="button" className="detail-panel__back btn btn-secondary btn-sm text-xs" onClick={onClose}>← 返回</button>
+          <button type="button" className="detail-panel__close-x btn btn-ghost btn-sm px-3" onClick={onClose} aria-label="关闭">✕</button>
+        </div>
       </div>
 
       {/* Summary */}
       <div className="px-4 py-3 border-b shrink-0" style={{ borderColor: 'var(--c-border)' }}>
         <a href={item.url} target="_blank" rel="noopener noreferrer"
-          className="text-[11px] block truncate mb-2 hover:underline" style={{ color: 'var(--color-brand-400)' }}>{item.url}</a>
-        <div className="grid grid-cols-4 gap-2">
+          className="detail-panel__summary-link text-[11px] mb-2 block truncate hover:underline" style={{ color: 'var(--color-brand-400)' }}>{item.url}</a>
+        <div className="detail-panel__summary-grid grid grid-cols-4 gap-2">
           {[
             { l: '状态', v: item.error ? '失败' : '成功', cls: item.error ? 'text-red-400' : 'text-emerald-400' },
             { l: '数据量', v: `${(item.items ?? 0).toLocaleString()}` },
@@ -291,10 +623,11 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
       </div>
 
       {/* Toolbar */}
-      <div className="px-3 py-2 border-b shrink-0 flex flex-col gap-2" style={{ borderColor: 'var(--c-border)' }}>
-        <div className="flex items-center gap-2">
-          <input className="input text-[11px] flex-1" placeholder="搜索数据..." value={search}
+      <div className="detail-panel__toolbar px-3 py-2 border-b shrink-0 flex flex-col gap-2" style={{ borderColor: 'var(--c-border)' }}>
+        <div className="detail-panel__toolbar-row flex items-center gap-2">
+          <input className="input flex-1 text-[11px]" placeholder="搜索数据..." value={search}
             onChange={e => setSearch(e.target.value)} style={{ padding: '4px 8px' }} />
+          <div className="detail-panel__toolbar-domains flex flex-wrap gap-2">
           {domains.length > 1 && (
             <select className="select" value={domainFilter} onChange={e => setDomainFilter(e.target.value)}
               style={{ fontSize: '11px', padding: '4px 6px', maxWidth: 140 }}>
@@ -310,9 +643,10 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
               {depths.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           )}
+          </div>
         </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
+        <div className="detail-panel__toolbar-actions flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-1">
             {(['table', 'card', 'list'] as ViewMode[]).map(v => (
               <button key={v} onClick={() => setViewMode(v)}
                 className="btn btn-sm" style={{
@@ -325,13 +659,12 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1">
             <select className="select" value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
               style={{ fontSize: '10px', padding: '2px 4px' }}>
               {[20, 50, 100].map(n => <option key={n} value={n}>{n}条/页</option>)}
             </select>
-            <button className="btn btn-secondary btn-sm" style={{ padding: '2px 6px', fontSize: '10px' }}
-              onClick={() => exportData('json', 'filtered')}>导出</button>
+            <button type="button" className="btn btn-secondary btn-sm" style={{ padding: '2px 6px', fontSize: '10px' }} onClick={() => exportData('json', 'filtered')}>导出</button>
           </div>
         </div>
       </div>
@@ -350,7 +683,7 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
       )}
 
       {/* Data area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="detail-panel__data-scroll min-h-0 flex-1 overflow-y-auto">
         {allData.length === 0 ? (
           <div className="text-center py-12 text-xs" style={{ color: 'var(--c-text-muted)' }}>
             {item.error ? '任务执行失败，无数据' : '暂无数据'}
@@ -359,9 +692,10 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
           <div className="text-center py-12 text-xs" style={{ color: 'var(--c-text-muted)' }}>没有匹配的数据</div>
         ) : (
           <>
-            {/* Table view */}
-            {viewMode === 'table' && (
-              <table className="w-full text-[11px]" style={{ borderCollapse: 'collapse' }}>
+            {/* Table view：桌面为宽表；窄屏为卡片行，避免横向裁切 */}
+            {viewMode === 'table' && !isNarrow && (
+              <div className="detail-table-wrap overflow-x-auto">
+              <table className="detail-table w-full min-w-[36rem] text-[11px]" style={{ borderCollapse: 'collapse' }}>
                 <thead>
                   <tr style={{ background: 'var(--c-bg-raised)' }}>
                     <th className="px-2 py-2 text-left" style={{ borderBottom: '1px solid var(--c-border)', width: 32 }}>
@@ -391,8 +725,8 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
                             onChange={() => toggleOne(globalIdx)} style={{ accentColor: 'var(--color-brand-500)' }} />
                         </td>
                         <td className="px-2 py-2" style={{ color: 'var(--c-text-muted)' }}>{globalIdx + 1}</td>
-                        <td className="px-2 py-2 truncate max-w-[160px]" style={{ color: 'var(--c-text)' }}>{row.title || row.alt || '—'}</td>
-                        <td className="px-2 py-2 truncate max-w-[200px]" style={{ color: 'var(--color-brand-400)' }}>{rowUrl}</td>
+                        <td className="detail-table__title max-w-[160px] truncate px-2 py-2" style={{ color: 'var(--c-text)' }}>{row.title || row.alt || '—'}</td>
+                        <td className="detail-table__url max-w-[200px] truncate px-2 py-2 text-[11px]" style={{ color: 'var(--color-brand-400)' }}>{rowUrl}</td>
                         {item.type !== 'image' && <td className="px-2 py-2" style={{ color: 'var(--c-text-muted)' }}>{row.depth ?? '—'}</td>}
                         {item.type === 'image' && (
                           <td className="px-2 py-1">
@@ -407,11 +741,100 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
                   })}
                 </tbody>
               </table>
+              </div>
+            )}
+
+            {viewMode === 'table' && isNarrow && (
+              <div className="detail-mobile-stack flex flex-col gap-2 px-1 pb-2">
+                <div
+                  className="detail-mobile-stack__bulk card flex items-center gap-3 px-3 py-2.5"
+                  style={{ borderColor: 'var(--c-border)' }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleAll}
+                    style={{ accentColor: 'var(--color-brand-500)', width: '1.125rem', height: '1.125rem' }}
+                    aria-label="全选本页"
+                  />
+                  <span className="text-xs font-medium" style={{ color: 'var(--c-text-secondary)' }}>全选本页</span>
+                </div>
+                {paged.map((row, i) => {
+                  const globalIdx = (safePage - 1) * pageSize + i;
+                  const rowUrl = getRowUrl(row);
+                  return (
+                    <div
+                      key={globalIdx}
+                      role="button"
+                      tabIndex={0}
+                      className="detail-mobile-row card cursor-pointer p-3 transition-colors active:scale-[0.99]"
+                      style={{ borderColor: 'var(--c-border)' }}
+                      onClick={() => setPreview(row)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setPreview(row);
+                        }
+                      }}
+                    >
+                      <div className="flex gap-3">
+                        <div className="pt-0.5" onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(globalIdx)}
+                            onChange={() => toggleOne(globalIdx)}
+                            style={{ accentColor: 'var(--color-brand-500)', width: '1.125rem', height: '1.125rem' }}
+                            aria-label={`选择第 ${globalIdx + 1} 条`}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-[11px] font-semibold tabular-nums shrink-0" style={{ color: 'var(--c-text-muted)' }}>
+                              #{globalIdx + 1}
+                            </span>
+                            {item.type === 'image' && rowUrl && (
+                              <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg" style={{ background: 'var(--c-bg-input)' }}>
+                                <img
+                                  src={rowUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  className="h-full w-full object-cover"
+                                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                          <p className="detail-mobile-row__title mt-1 text-sm font-semibold leading-snug" style={{ color: 'var(--c-text)' }}>
+                            {row.title || row.alt || '—'}
+                          </p>
+                          {rowUrl ? (
+                            <a
+                              href={rowUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="detail-mobile-row__url mt-2 block text-xs leading-relaxed"
+                              style={{ color: 'var(--color-brand-400)' }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              {rowUrl}
+                            </a>
+                          ) : null}
+                          {item.type !== 'image' && (
+                            <p className="mt-2 text-[11px]" style={{ color: 'var(--c-text-muted)' }}>
+                              深度 <span style={{ color: 'var(--c-text-secondary)' }}>{row.depth ?? '—'}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
             {/* Card view */}
             {viewMode === 'card' && (
-              <div className={`p-3 grid gap-2 ${item.type === 'image' ? 'grid-cols-3' : 'grid-cols-1'}`}>
+              <div className={`detail-panel__card-grid grid gap-2 p-3 ${item.type === 'image' ? 'grid-cols-3' : 'grid-cols-1'}`}>
                 {paged.map((row, i) => {
                   const globalIdx = (safePage - 1) * pageSize + i;
                   const rowUrl = getRowUrl(row);
@@ -428,8 +851,8 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
                         <input type="checkbox" checked={selected.has(globalIdx)} onClick={e => e.stopPropagation()}
                           onChange={() => toggleOne(globalIdx)} style={{ accentColor: 'var(--color-brand-500)', marginTop: 2 }} />
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-medium truncate" style={{ color: 'var(--c-text)' }}>{row.title || row.alt || '—'}</div>
-                          <div className="text-[10px] truncate" style={{ color: 'var(--color-brand-400)' }}>{rowUrl}</div>
+                          <div className="truncate text-xs font-medium" style={{ color: 'var(--c-text)' }}>{row.title || row.alt || '—'}</div>
+                          <div className="mt-0.5 truncate text-[10px]" style={{ color: 'var(--color-brand-400)' }}>{rowUrl}</div>
                           {row.content && <p className="text-[10px] mt-1 line-clamp-2" style={{ color: 'var(--c-text-secondary)' }}>{String(row.content).substring(0, 120)}</p>}
                           {row.depth != null && <span className="text-[9px] mt-1 inline-block" style={{ color: 'var(--c-text-muted)' }}>深度 {row.depth}</span>}
                         </div>
@@ -448,17 +871,15 @@ function DetailPanel({ item, onClose }: { item: CrawlHistoryItem; onClose: () =>
                   const rowUrl = getRowUrl(row);
                   return (
                     <div key={globalIdx}
-                      className="flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors"
+                      className="detail-list__row flex cursor-pointer items-center gap-2 px-3 py-1.5 transition-colors"
                       style={{ borderBottom: '1px solid var(--c-border)' }}
-                      onClick={() => setPreview(row)}
-                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-bg-hover)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                      onClick={() => setPreview(row)}>
                       <input type="checkbox" checked={selected.has(globalIdx)} onClick={e => e.stopPropagation()}
                         onChange={() => toggleOne(globalIdx)} style={{ accentColor: 'var(--color-brand-500)' }} />
-                      <span className="text-[10px] w-6 text-center shrink-0" style={{ color: 'var(--c-text-muted)' }}>{globalIdx + 1}</span>
-                      <span className="text-[11px] truncate flex-1" style={{ color: 'var(--c-text)' }}>{row.title || row.alt || '—'}</span>
-                      <span className="text-[10px] truncate max-w-[180px]" style={{ color: 'var(--color-brand-400)' }}>{rowUrl}</span>
-                      {row.depth != null && <span className="text-[9px] shrink-0 w-8 text-center" style={{ color: 'var(--c-text-muted)' }}>{row.depth}</span>}
+                      <span className="w-6 shrink-0 text-center text-[10px]" style={{ color: 'var(--c-text-muted)' }}>{globalIdx + 1}</span>
+                      <span className="detail-list__row-title min-w-0 flex-1 truncate text-[11px]" style={{ color: 'var(--c-text)' }}>{row.title || row.alt || '—'}</span>
+                      <span className="detail-list__url max-w-[180px] shrink-0 truncate text-[10px]" style={{ color: 'var(--color-brand-400)' }}>{rowUrl}</span>
+                      {row.depth != null && <span className="w-8 shrink-0 text-center text-[9px]" style={{ color: 'var(--c-text-muted)' }}>{row.depth}</span>}
                     </div>
                   );
                 })}
@@ -536,16 +957,19 @@ const AnalisysPage = () => {
   }, [refreshHistory]);
 
   const del = useCallback((id: string) => {
+    if (!window.confirm('确定删除这条记录？')) return;
+    void crawlerApi.deleteHistory(id).catch(() => {});
     setHistory(prev => {
       const next = prev.filter(h => h.id !== id);
       saveHistory(next);
-      if (selected?.id === id) setSelected(null);
       return next;
     });
-  }, [selected]);
+    setSelected(s => (s?.id === id ? null : s));
+  }, []);
 
   const clearAll = useCallback(() => {
     if (!window.confirm('确定清空所有历史记录？')) return;
+    void crawlerApi.clearHistory().catch(() => {});
     setHistory([]); setSelected(null); saveHistory([]);
   }, []);
 
@@ -574,14 +998,19 @@ const AnalisysPage = () => {
   };
 
   return (
-    <div className="page-enter pt-18 pb-8 px-5 h-screen flex flex-col" style={{ paddingTop: '72px' }}>
-      {/* Header row */}
-      <div className="mx-auto w-full max-w-7xl flex items-center justify-between mb-4 shrink-0">
+    <div
+      className={`analytics-page page-enter app-layout flex min-h-0 w-full flex-1 flex-col overflow-hidden px-5 pb-8 lg:h-screen lg:px-8 ${selected ? 'analytics-page--detail-open' : ''}`}
+      style={{
+        paddingTop: 'calc(72px + env(safe-area-inset-top, 0px))',
+      }}
+    >
+      {/* Header（桌面：标题与按钮横排；手机见 mobile-ui.css） */}
+      <div className="analytics-page__header-row mb-4 flex w-full shrink-0 items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>数据分析</h1>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-muted)' }}>管理和分析爬取历史</p>
+          <h1 className="analytics-page__title text-2xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>数据分析</h1>
+          <p className="analytics-page__subtitle mt-0.5 text-sm" style={{ color: 'var(--c-text-muted)' }}>管理和分析爬取历史</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="analytics-page__header-actions flex items-center gap-2">
           <button
             type="button"
             className="btn btn-secondary btn-sm"
@@ -592,39 +1021,40 @@ const AnalisysPage = () => {
           </button>
           {history.length > 0 && (
             <>
-              <button className="btn btn-secondary btn-sm" onClick={exportJSON}>导出 JSON</button>
-              <button className="btn btn-danger btn-sm" onClick={clearAll}>清空</button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={exportJSON}>导出 JSON</button>
+              <button type="button" className="btn btn-danger btn-sm" onClick={clearAll}>清空</button>
             </>
           )}
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats（桌面：一行 5 格） */}
       {stats.total > 0 && (
-        <div className="mx-auto w-full max-w-7xl grid grid-cols-5 gap-3 mb-4 shrink-0">
+        <div className="analytics-page__stats mb-4 grid w-full shrink-0 grid-cols-5 gap-3">
           {[
             { l: '总任务', v: stats.total, c: 'var(--color-brand-400)' },
             { l: '成功', v: stats.success, c: 'var(--color-success)' },
             { l: '失败', v: stats.failed, c: 'var(--color-danger)' },
             { l: '总数据', v: stats.items.toLocaleString(), c: 'var(--color-accent)' },
             { l: '平均耗时', v: fmt(stats.avg), c: 'var(--color-warn)' },
-          ].map(s => (
-            <div key={s.l} className="card p-3 text-center">
-              <div className="text-lg font-bold" style={{ color: s.c }}>{s.v}</div>
-              <div className="text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-muted)' }}>{s.l}</div>
+          ].map((s) => (
+            <div key={s.l} className="analytics-page__stat-card card p-3 text-center">
+              <div className="analytics-page__stat-value text-lg font-bold tabular-nums" style={{ color: s.c }}>{s.v}</div>
+              <div className="mt-0.5 text-[10px] uppercase tracking-wider" style={{ color: 'var(--c-text-muted)' }}>{s.l}</div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Main layout */}
-      <div className="mx-auto w-full max-w-7xl flex-1 min-h-0 grid gap-4" style={{ gridTemplateColumns: selected ? '380px 1fr' : '1fr' }}>
-        {/* Left: list */}
-        <div className="flex flex-col min-h-0">
-          {/* Toolbar */}
-          <div className="card p-3 mb-3 shrink-0">
-            <input className="input text-xs mb-2" placeholder="搜索 URL..." value={search} onChange={e => setSearch(e.target.value)} />
-            <div className="flex gap-1.5 flex-wrap">
+      {/* 主区：桌面双栏 grid；手机由 mobile-ui.css 改为纵向 flex */}
+      <div
+        className="analytics-page__main-grid grid w-full min-h-0 flex-1 gap-4"
+        style={{ gridTemplateColumns: selected ? 'minmax(0,min(360px,32%)) minmax(0,1fr)' : '1fr' }}
+      >
+        <div className="analytics-page__list-column flex h-full min-h-0 min-w-0 flex-col">
+          <div className="analytics-page__toolbar card mb-3 shrink-0 p-3">
+            <input className="input mb-2 text-xs" placeholder="搜索 URL..." value={search} onChange={e => setSearch(e.target.value)} />
+            <div className="analytics-page__toolbar-filters flex flex-wrap items-center gap-1.5">
               <select className="select" value={filter} onChange={e => setFilter(e.target.value as FilterType)}>
                 <option value="all">全部类型</option>
                 <option value="link">链接</option>
@@ -636,17 +1066,18 @@ const AnalisysPage = () => {
                 <option value="items">数量</option>
                 <option value="time">耗时</option>
               </select>
-              <button className="btn btn-ghost btn-sm" onClick={() => setSortAsc(p => !p)}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setSortAsc(p => !p)}>
                 {sortAsc ? '↑' : '↓'}
               </button>
             </div>
           </div>
 
-          {/* List */}
-          <div className="flex-1 overflow-y-auto flex flex-col gap-2 pr-1">
+          <div className="analytics-page__list-scroll flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
             {list.length === 0 ? (
               <div className="text-center py-16">
-                <div className="text-3xl mb-3">{history.length === 0 ? '📋' : '🔍'}</div>
+                <div className="mb-3 flex justify-center" style={{ color: 'var(--c-text-muted)' }}>
+                  {history.length === 0 ? <ClipboardList size={40} strokeWidth={1.25} aria-hidden /> : <Search size={40} strokeWidth={1.25} aria-hidden />}
+                </div>
                 <p className="text-sm font-medium mb-1" style={{ color: 'var(--c-text)' }}>
                   {history.length === 0 ? '暂无爬取历史' : '没有匹配结果'}
                 </p>
@@ -661,32 +1092,46 @@ const AnalisysPage = () => {
                 <div
                   key={item.id}
                   onClick={() => setSelected(item)}
-                  className="card p-3.5 cursor-pointer transition-all group"
+                  className="history-card group flex min-w-0 cursor-pointer items-stretch gap-3 p-3.5 card transition-all"
                   style={{
                     borderColor: active ? 'var(--color-brand-500)' : undefined,
                     boxShadow: active ? '0 0 0 2px rgba(66,135,245,0.1)' : undefined,
                     borderLeft: item.error ? '3px solid var(--color-danger)' : undefined,
                   }}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-semibold" style={{ color: 'var(--color-brand-400)' }}>{t.icon} {t.label}</span>
-                    <span className={`badge ${item.error ? 'badge-danger' : 'badge-success'}`}>{item.error ? '失败' : '成功'}</span>
-                  </div>
-                  <div className="text-xs truncate mb-2" style={{ color: 'var(--c-text-secondary)' }}>{item.url}</div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex gap-3 text-[11px]" style={{ color: 'var(--c-text-muted)' }}>
+                  <div className="flex min-h-[4.5rem] min-w-0 flex-1 flex-col">
+                    <div className="mb-1.5 inline-flex items-center gap-1.5 text-[11px] font-semibold" style={{ color: 'var(--color-brand-400)' }}>
+                      <CrawlerTypeIcon type={item.type} size={14} className="shrink-0 opacity-90" />
+                      {t.label}
+                    </div>
+                    <div className="history-card__url mb-2 truncate text-xs" style={{ color: 'var(--c-text-secondary)' }}>{item.url}</div>
+                    <div className="history-card__meta-row mt-auto flex flex-wrap items-center gap-3 text-[11px]" style={{ color: 'var(--c-text-muted)' }}>
                       <span><strong style={{ color: 'var(--c-text)' }}>{item.items ?? 0}</strong> 条</span>
                       <span>{fmt(item.time ?? 0)}</span>
                       <span>深度 {item.depth}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px]" style={{ color: 'var(--c-text-muted)' }}>{fmtDate(item.timestamp)}</span>
-                      <button className="opacity-0 group-hover:opacity-100 btn btn-danger btn-sm"
-                        style={{ padding: '2px 6px', fontSize: '10px' }}
-                        onClick={e => { e.stopPropagation(); del(item.id); }}>
-                        删除
-                      </button>
-                    </div>
+                  </div>
+                  {/* 右侧轨：状态（上）— 删除（中）— 时间（下），便于 iPad 触控与扫视 */}
+                  <div className="history-card__rail flex w-11 shrink-0 flex-col items-center justify-between gap-1 border-l pl-3" style={{ borderColor: 'var(--c-border)' }}>
+                    <span className={`badge shrink-0 ${item.error ? 'badge-danger' : 'badge-success'}`}>{item.error ? '失败' : '成功'}</span>
+                    <button
+                      type="button"
+                      className="history-card__delete flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors"
+                      style={{
+                        color: 'var(--color-danger)',
+                        background: 'transparent',
+                      }}
+                      title="删除此记录"
+                      aria-label="删除此记录"
+                      onClick={e => { e.stopPropagation(); del(item.id); }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <Trash2 size={20} strokeWidth={2} aria-hidden />
+                    </button>
+                    <span className="max-w-[3.25rem] shrink-0 text-center text-[10px] leading-tight" style={{ color: 'var(--c-text-muted)' }}>
+                      {fmtDate(item.timestamp)}
+                    </span>
                   </div>
                 </div>
               );
@@ -694,9 +1139,9 @@ const AnalisysPage = () => {
           </div>
         </div>
 
-        {/* Right: detail */}
+        {/* Right: detail（手机全宽；桌面与左侧列表并排） */}
         {selected && (
-          <div className="min-h-0">
+          <div className="analytics-page__detail-column flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <DetailPanel item={selected} onClose={() => setSelected(null)} />
           </div>
         )}

@@ -23,6 +23,8 @@ class TemplateUpdate(BaseModel):
     headers: dict | None = None
     parse_rules: dict | None = None
     anti_crawl_config: dict | None = None
+    pagination_config: dict | None = None
+    data_clean_rules: dict | None = None
 
 
 class TemplateResponse(BaseModel):
@@ -34,9 +36,12 @@ class TemplateResponse(BaseModel):
     headers: dict
     parse_rules: dict
     anti_crawl_config: dict
+    pagination_config: dict | None = None
+    data_clean_rules: dict | None = None
     version: int
     is_builtin: bool
     is_active: bool
     created_at: datetime
+    updated_at: datetime
 
     model_config = {"from_attributes": True}

@@ -95,6 +95,9 @@ def main():
     parser.add_argument('--depth', type=int, default=2, help='爬取深度 (1-10)')
     parser.add_argument('--max-concurrent', type=int, default=5, help='最大并发数')
     parser.add_argument('--request-delay', type=float, default=0.5, help='请求延迟 (秒)')
+    parser.add_argument('--timeout', type=int, default=10, help='单次请求超时 (秒)')
+    parser.add_argument('--max-retries', type=int, default=3, help='失败重试次数')
+    parser.add_argument('--user-agent', type=str, default='', help='自定义 User-Agent，空则使用默认')
     parser.add_argument('--json', action='store_true', help='以JSON格式输出结果')
 
     args = parser.parse_args()
@@ -107,10 +110,14 @@ def main():
         }))
         sys.exit(1)
 
+    ua = (args.user_agent or '').strip() or None
     # 创建配置
     config = CrawlConfig(
         max_concurrent=args.max_concurrent,
-        request_delay=args.request_delay
+        request_delay=args.request_delay,
+        timeout=max(5, min(120, args.timeout)),
+        max_retries=max(0, min(15, args.max_retries)),
+        user_agent=ua or CrawlConfig().user_agent,
     )
 
     # 运行异步爬虫

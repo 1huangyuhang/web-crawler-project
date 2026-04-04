@@ -5,12 +5,18 @@ import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from app.config import get_settings
 from app.database import Base
 from app.models import *  # noqa: F401,F403 — ensure all models are registered
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# 与 FastAPI 使用同一连接串（避免 alembic.ini 与 .env 不一致）
+get_settings.cache_clear()
+_sync_url = get_settings().DATABASE_URL_SYNC
+config.set_main_option("sqlalchemy.url", _sync_url)
 
 target_metadata = Base.metadata
 

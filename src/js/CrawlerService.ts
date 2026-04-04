@@ -3,7 +3,7 @@
  */
 
 import axios from 'axios'
-import { crawlerApi } from '../services/api'
+import { crawlerApi, type CrawlRuntimeClient } from '../services/api'
 
 function normalizeCrawlResponse(
   raw: Record<string, unknown>,
@@ -26,9 +26,19 @@ function normalizeCrawlResponse(
 }
 
 export class CrawlerService {
-  static async startCrawling(crawlerType: string, url: string, depth: number): Promise<Record<string, unknown>> {
+  static async startCrawling(
+    crawlerType: string,
+    url: string,
+    depth: number,
+    crawlRuntime?: CrawlRuntimeClient
+  ): Promise<Record<string, unknown>> {
     try {
-      const res = await crawlerApi.startCrawl({ type: crawlerType, url, depth })
+      const res = await crawlerApi.startCrawl({
+        type: crawlerType,
+        url,
+        depth,
+        ...(crawlRuntime && Object.keys(crawlRuntime).length ? { crawlRuntime } : {})
+      })
       return normalizeCrawlResponse(res.data as Record<string, unknown>, {
         type: crawlerType,
         url,

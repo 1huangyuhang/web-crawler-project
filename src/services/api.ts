@@ -73,9 +73,21 @@ apiClient.interceptors.response.use(
   }
 )
 
+export type CrawlRuntimeClient = {
+  maxConcurrent?: number
+  requestDelay?: number
+  timeout?: number
+  maxRetries?: number
+  userAgent?: string
+}
+
 export const crawlerApi = {
-  startCrawl: (data: { type: string; url: string; depth: number }) =>
-    apiClient.post('/api/crawl', data),
+  startCrawl: (data: {
+    type: string
+    url: string
+    depth: number
+    crawlRuntime?: CrawlRuntimeClient
+  }) => apiClient.post('/api/crawl', data),
 
   /** 短超时，避免健康检查占用默认 30s，拖成「长时间不可用」 */
   checkHealth: () => apiClient.get('/api/health', { timeout: 5000 }),

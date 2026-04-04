@@ -13,10 +13,27 @@ import {
   type ReactNode
 } from 'react';
 import { CrawlerService } from './CrawlerService';
-import { crawlerApi } from '../services/api';
+import { crawlerApi, type CrawlRuntimeClient } from '../services/api';
 import { websocketService } from '../services/websocket';
 import { safeGetItem, safeSetItem } from '../utils/safeStorage';
 import { useBackendHealth } from '../hooks/useBackendHealth';
+import {
+  antiCrawlToRuntime,
+  pickRecommendedDepth,
+  pickRecommendedType,
+  type ApplySpiderTemplateDetail
+} from '../utils/spiderTemplateRuntime';
+
+/**
+ * 前端估算进度（与 server crawlRunner 的渐近思路一致，时间常数略短以便 WS 未到时条仍能动起来）
+ */
+function clientQueueEstimatedPercent(elapsedSec: number, cap = 88): number {
+  return Math.min(cap, Math.round(95 * (1 - Math.exp(-elapsedSec / 16))));
+}
+
+function clientSyncEstimatedPercent(elapsedSec: number, cap = 88): number {
+  return Math.min(cap, Math.round(94 * (1 - Math.exp(-elapsedSec / 28))));
+}
 
 /** 队列执行中、尚未拿到最终结果时的展示用元数据 */
 export interface RunningJobMeta {
@@ -29,6 +46,12 @@ export interface RunningJobMeta {
 /**
  * 爬虫状态接口
  */
+export interface AppliedSpiderTemplate {
+  id: string;
+  name: string;
+  runtime?: CrawlRuntimeClient;
+}
+
 export interface CrawlerState {
   crawlerType: string;
   targetUrl: string;
@@ -41,6 +64,8 @@ export interface CrawlerState {
   crawlProgress: number;
   currentUrl: string;
   crawlWarning: string | null;
+  /** 从模板库应用的建议策略（并发、延迟等会传给 Node 爬虫） */
+  appliedSpiderTemplate: AppliedSpiderTemplate | null;
 }
 
 /**
@@ -54,6 +79,7 @@ export interface CrawlerActions {
   handleReset: () => void;
   /** 手动再探测后端（开发时 nodemon 重启后可点） */
   recheckBackend: () => Promise<boolean>;
+  clearAppliedSpiderTemplate: () => void;
 }
 
 const CrawlerContext = createContext<[CrawlerState, CrawlerActions] | null>(null);
@@ -123,6 +149,16 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     if (syncProgressTimerRef.current) {
       clearInterval(syncProgressTimerRef.current);
       syncProgressTimerRef.current = null;
+    }
+  };
+
+  /** 队列模式：WS 未推送时仍驱动进度条（与 WS 取 max，不替代真实完成态） */
+  const queueSimTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const queueSimStartedAtRef = useRef(0);
+  const clearQueueSimProgress = () => {
+    if (queueSimTimerRef.current) {
+      clearInterval(queueSimTimerRef.current);
+      queueSimTimerRef.current = null;
     }
   };
 
@@ -207,6 +243,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     const payload = data.data;
 
     const finishAndUnsub = () => {
+      clearQueueSimProgress();
       clearHistoryPoll();
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
@@ -219,7 +256,14 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
 
     if (type === 'crawl:progress' && payload && typeof payload === 'object') {
       if (payload.progress !== undefined) {
-        setCrawlProgress(payload.progress);
+        const n = Number(payload.progress);
+        if (Number.isFinite(n)) {
+          setCrawlProgress((prev) => {
+            if (n <= 0) return prev;
+            if (n >= 100) return 100;
+            return Math.max(prev, Math.min(99, n));
+          });
+        }
       }
       if (payload.currentUrl) {
         setCurrentUrl(payload.currentUrl);
@@ -381,6 +425,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
   };
 
   const cleanupWs = () => {
+    clearQueueSimProgress();
     clearHistoryPoll();
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
@@ -392,6 +437,35 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
   };
 
   const [crawlWarning, setCrawlWarning] = useState<string | null>(null);
+
+  const [appliedSpiderTemplate, setAppliedSpiderTemplate] = useState<AppliedSpiderTemplate | null>(null);
+
+  useEffect(() => {
+    const onApply = (ev: Event) => {
+      const ce = ev as CustomEvent<ApplySpiderTemplateDetail>;
+      const d = ce.detail;
+      if (!d?.id || !d.name) return;
+      const ac = d.anti_crawl_config;
+      const runtime =
+        ac && typeof ac === 'object' ? antiCrawlToRuntime(ac as Record<string, unknown>) : undefined;
+      setAppliedSpiderTemplate({
+        id: d.id,
+        name: d.name,
+        ...(runtime && Object.keys(runtime).length ? { runtime } : {})
+      });
+      if (ac && typeof ac === 'object') {
+        const rec = ac as Record<string, unknown>;
+        const rt = pickRecommendedType(rec);
+        if (rt) setCrawlerType(rt);
+        const dep = pickRecommendedDepth(rec);
+        if (dep != null) setCrawlerDepth(dep);
+      }
+    };
+    window.addEventListener('applySpiderTemplate', onApply as EventListener);
+    return () => window.removeEventListener('applySpiderTemplate', onApply as EventListener);
+  }, []);
+
+  const clearAppliedSpiderTemplate = () => setAppliedSpiderTemplate(null);
 
   const handleStartCrawl = async () => {
     setCrawlWarning(null);
@@ -411,23 +485,25 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     // 清理旧状态
     cleanupWs();
     clearSyncProgress();
+    clearQueueSimProgress();
     setCrawlerStatus('running');
     setCrawlProgress(0);
     setCurrentUrl(targetUrl);
     setCrawlerResult(null);
 
-    // 同步模式下模拟进度（HTTP 阻塞等待 Python 结束时给用户视觉反馈）
-    let syncTick = 5;
+    // 同步模式：HTTP 阻塞期间渐近估算进度（非真实百分比）
+    const syncStartedAt = Date.now();
     syncProgressTimerRef.current = setInterval(() => {
-      syncTick = Math.min(90, syncTick + 3);
-      setCrawlProgress(syncTick);
-    }, 1500);
+      const elapsedSec = (Date.now() - syncStartedAt) / 1000;
+      setCrawlProgress(clientSyncEstimatedPercent(elapsedSec));
+    }, 450);
 
     try {
       const result = (await CrawlerService.startCrawling(
         crawlerType,
         targetUrl,
-        crawlerDepth
+        crawlerDepth,
+        appliedSpiderTemplate?.runtime
       )) as Record<string, unknown>;
 
       // 同步模式下 HTTP 已返回，停掉模拟进度
@@ -446,7 +522,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
         activeRunMetaRef.current = meta;
         setRunningJobMeta(meta);
         setCrawlerResult(null);
-        setCrawlProgress(10);
+        setCrawlProgress(6);
 
         const wsOk = await websocketService.ensureAuthenticatedWithRecovery();
         if (!wsOk) {
@@ -455,6 +531,21 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
           );
         }
         unsubscribeRef.current = websocketService.subscribeToCrawl(id, wsHandlerWrapperRef.current);
+
+        // WS 消息可能因网络/代理未到，用本地估算与推送取 max，避免长时间卡在初始百分比
+        clearQueueSimProgress();
+        queueSimStartedAtRef.current = Date.now();
+        const tickQueueSim = () => {
+          if (crawlerStatusRef.current !== 'running' || activeCrawlIdRef.current !== id) {
+            clearQueueSimProgress();
+            return;
+          }
+          const elapsedSec = (Date.now() - queueSimStartedAtRef.current) / 1000;
+          const local = clientQueueEstimatedPercent(elapsedSec);
+          setCrawlProgress((prev) => Math.max(prev, local));
+        };
+        tickQueueSim();
+        queueSimTimerRef.current = setInterval(tickQueueSim, 480);
 
         clearHistoryPoll();
         const pollStarted = Date.now();
@@ -484,6 +575,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
               ) as Record<string, unknown> | undefined;
               if (!row) return;
               clearHistoryPoll();
+              clearQueueSimProgress();
               if (unsubscribeRef.current) {
                 unsubscribeRef.current();
                 unsubscribeRef.current = null;
@@ -540,6 +632,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
       }
     } catch (error) {
       clearSyncProgress();
+      clearQueueSimProgress();
       console.error('爬取失败:', error);
       cleanupWs();
       setCrawlerStatus('error');
@@ -559,6 +652,8 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
 
   // 处理重置
   const handleReset = () => {
+    clearSyncProgress();
+    clearQueueSimProgress();
     clearHistoryPoll();
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
@@ -570,6 +665,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     setCrawlerType('link');
     setTargetUrl('');
     setCrawlerDepth(2);
+    setAppliedSpiderTemplate(null);
     setCrawlerStatus('idle');
     setCrawlerResult(null);
     setRunningJobMeta(null);
@@ -589,6 +685,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     crawlProgress,
     currentUrl,
     crawlWarning,
+    appliedSpiderTemplate,
   };
 
   // 操作对象
@@ -598,7 +695,8 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     setCrawlerDepth,
     handleStartCrawl,
     handleReset,
-    recheckBackend
+    recheckBackend,
+    clearAppliedSpiderTemplate
   };
 
   return [state, actions];

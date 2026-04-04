@@ -42,7 +42,7 @@ const SimpleNavbar = () => {
 
         {crawlerStatus === 'running' && (
           <span className="navbar-crawl-badge" title="切换页面不会中断当前爬取任务">
-            爬取中 {crawlProgress}%
+            爬取中 · 约 {Math.round(crawlProgress)}%
           </span>
         )}
 

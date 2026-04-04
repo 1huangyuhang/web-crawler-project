@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import './styles/app.css'
+import './styles/mobile-ui.css'
 
 const rootEl = document.getElementById('root')
 if (!rootEl) {

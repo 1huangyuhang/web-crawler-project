@@ -18,6 +18,34 @@ interface HistoryEntry {
   timestamp: number;
 }
 
+interface AiStatus {
+  db_connected: boolean;
+  db_error: string | null;
+  stored_providers: number;
+  env_llm_configured: boolean;
+  llm_ready: boolean;
+}
+
+interface AiProviderRow {
+  id: string;
+  display_name: string;
+  base_url: string;
+  model_id: string;
+  is_default: boolean;
+}
+
+const LS_PROVIDER_ID = 'ai_analysis_provider_id';
+
+function formatApiError(data: { detail?: unknown; message?: string }): string {
+  const d = data.detail;
+  if (typeof d === 'string') return d;
+  if (Array.isArray(d)) {
+    return d.map((x: { msg?: string }) => x.msg || JSON.stringify(x)).join('; ');
+  }
+  if (data.message) return String(data.message);
+  return '请求失败';
+}
+
 const PRESET_QUESTIONS = [
   '最近7天每天爬取了多少条数据',
   '爬取成功和失败的任务各有多少',
@@ -128,9 +156,49 @@ const AiAnalysisPage = () => {
   const [showSqlEditor, setShowSqlEditor] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [providers, setProviders] = useState<AiProviderRow[]>([]);
+  const [providerId, setProviderId] = useState<string>(() => {
+    try { return localStorage.getItem(LS_PROVIDER_ID) || ''; } catch { return ''; }
+  });
+  const [showProviders, setShowProviders] = useState(false);
+  const [savingProvider, setSavingProvider] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newBaseUrl, setNewBaseUrl] = useState('https://api.deepseek.com/v1');
+  const [newModelId, setNewModelId] = useState('deepseek-chat');
+  const [newApiKey, setNewApiKey] = useState('');
+  const [newAsDefault, setNewAsDefault] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setHistory(loadQueryHistory()); }, []);
+
+  const refreshAiMeta = async () => {
+    try {
+      const [st, pr] = await Promise.all([
+        fetch('/api/v1/ai/status').then(r => r.json()),
+        fetch('/api/v1/ai/providers').then(r => r.json()),
+      ]);
+      setAiStatus(st);
+      if (Array.isArray(pr)) setProviders(pr);
+    } catch {
+      setAiStatus({
+        db_connected: false,
+        db_error: '无法连接 AI 后端（请确认 FastAPI 已启动且已执行数据库迁移）',
+        stored_providers: 0,
+        env_llm_configured: false,
+        llm_ready: false,
+      });
+    }
+  };
+
+  useEffect(() => { void refreshAiMeta(); }, []);
+
+  useEffect(() => {
+    try {
+      if (providerId) localStorage.setItem(LS_PROVIDER_ID, providerId);
+      else localStorage.removeItem(LS_PROVIDER_ID);
+    } catch { /* ignore */ }
+  }, [providerId]);
 
   const runQuery = async (q: string) => {
     if (!q.trim()) return;
@@ -142,7 +210,10 @@ const AiAnalysisPage = () => {
       const resp = await fetch('/api/v1/ai/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({
+          question: q,
+          ...(providerId ? { provider_id: providerId } : {}),
+        }),
       });
       const data = await resp.json();
 
@@ -150,7 +221,7 @@ const AiAnalysisPage = () => {
         setResult({
           question: q, sql: '', columns: [], rows: [], total: 0,
           chart: null, duration_ms: 0,
-          error: data.detail || data.message || '查询失败',
+          error: formatApiError(data),
         });
       } else {
         setResult({ ...data, error: undefined });
@@ -182,7 +253,7 @@ const AiAnalysisPage = () => {
       });
       const data = await resp.json();
       if (!resp.ok) {
-        setResult(prev => prev ? { ...prev, error: data.detail || '执行失败' } : null);
+        setResult(prev => prev ? { ...prev, error: formatApiError(data) } : null);
       } else {
         setResult(prev => prev ? { ...prev, ...data, error: undefined } : data);
       }
@@ -193,8 +264,61 @@ const AiAnalysisPage = () => {
     }
   };
 
+  const submitNewProvider = async () => {
+    if (!newName.trim() || !newBaseUrl.trim() || !newModelId.trim() || !newApiKey.trim()) return;
+    setSavingProvider(true);
+    try {
+      const resp = await fetch('/api/v1/ai/providers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          display_name: newName.trim(),
+          base_url: newBaseUrl.trim(),
+          model_id: newModelId.trim(),
+          api_key: newApiKey.trim(),
+          set_as_default: newAsDefault,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        alert(formatApiError(data));
+        return;
+      }
+      setNewApiKey('');
+      setNewName('');
+      await refreshAiMeta();
+      if (data.id) setProviderId(String(data.id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSavingProvider(false);
+    }
+  };
+
+  const removeProvider = async (id: string) => {
+    if (!confirm('确定删除该供应商配置？')) return;
+    const resp = await fetch(`/api/v1/ai/providers/${id}`, { method: 'DELETE' });
+    if (!resp.ok) {
+      const data = await resp.json();
+      alert(formatApiError(data));
+      return;
+    }
+    if (providerId === id) setProviderId('');
+    await refreshAiMeta();
+  };
+
+  const makeDefault = async (id: string) => {
+    const resp = await fetch(`/api/v1/ai/providers/${id}/set-default`, { method: 'POST' });
+    if (!resp.ok) {
+      const data = await resp.json();
+      alert(formatApiError(data));
+      return;
+    }
+    await refreshAiMeta();
+  };
+
   return (
-    <div className="page-enter mx-auto max-w-5xl px-5 pt-24 pb-16">
+    <div className="page-shell page-enter app-layout px-5 pb-16 pt-24 lg:px-8">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight mb-1" style={{ color: 'var(--c-text)' }}>
@@ -203,6 +327,118 @@ const AiAnalysisPage = () => {
         <p className="text-sm" style={{ color: 'var(--c-text-secondary)' }}>
           用自然语言查询爬取数据，AI 自动生成 SQL 并返回结果
         </p>
+      </div>
+
+      {/* Backend / DB / LLM connectivity */}
+      {aiStatus && (
+        <div
+          className="card p-3 mb-4 text-[11px] leading-relaxed"
+          style={{
+            borderColor: aiStatus.db_connected ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
+            background: aiStatus.db_connected ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)',
+          }}
+        >
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span style={{ color: 'var(--c-text)' }}>
+              <strong>数据库</strong>：{aiStatus.db_connected ? '已连接' : '未连接'}
+              {!aiStatus.db_connected && aiStatus.db_error && (
+                <span style={{ color: 'var(--c-text-secondary)' }}> — {aiStatus.db_error}</span>
+              )}
+            </span>
+            <span style={{ color: 'var(--c-text-secondary)' }}>
+              已存供应商 {aiStatus.stored_providers} 个 · .env 中 DEEPSEEK {aiStatus.env_llm_configured ? '已配置' : '未配置'}
+            </span>
+            <span style={{ color: aiStatus.llm_ready ? '#34d399' : '#fbbf24' }}>
+              {aiStatus.llm_ready ? '可进行自然语言生成 SQL' : '需配置 API Key（界面或 .env）'}
+            </span>
+            <button type="button" className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 10 }}
+              onClick={() => void refreshAiMeta()}>刷新状态</button>
+          </div>
+        </div>
+      )}
+
+      {/* Model providers */}
+      <div className="card p-4 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <div className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>模型供应商</div>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--c-text-muted)' }}>
+              OpenAI 兼容接口（DeepSeek、OpenAI 等）。密钥在服务端用 SECRET_KEY 加密后写入数据库。
+            </p>
+          </div>
+          <button type="button" className="btn btn-secondary btn-sm"
+            onClick={() => setShowProviders(!showProviders)}>
+            {showProviders ? '收起配置' : '管理供应商'}
+          </button>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-1">
+          <label className="text-[11px] shrink-0" style={{ color: 'var(--c-text-secondary)' }}>本次查询使用</label>
+          <select
+            className="input text-xs flex-1 max-w-xl"
+            value={providerId}
+            onChange={e => setProviderId(e.target.value)}
+            disabled={loading}
+          >
+            <option value="">自动（数据库中的「默认」供应商，若无则使用 .env 的 DeepSeek）</option>
+            {providers.map(p => (
+              <option key={p.id} value={p.id}>
+                {p.display_name} {p.is_default ? '（默认）' : ''} — {p.model_id}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {showProviders && (
+          <div className="mt-4 pt-4 border-t space-y-4" style={{ borderColor: 'var(--c-border)' }}>
+            {providers.length > 0 && (
+              <ul className="space-y-2">
+                {providers.map(p => (
+                  <li key={p.id}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg text-[11px]"
+                    style={{ background: 'var(--c-bg-hover)' }}>
+                    <div>
+                      <span className="font-medium" style={{ color: 'var(--c-text)' }}>{p.display_name}</span>
+                      {p.is_default && (
+                        <span className="ml-2 px-1.5 py-0.5 rounded text-[9px]" style={{
+                          background: 'var(--color-brand-500)', color: '#fff',
+                        }}>默认</span>
+                      )}
+                      <div style={{ color: 'var(--c-text-muted)' }}>{p.base_url} · {p.model_id}</div>
+                    </div>
+                    <div className="flex gap-1">
+                      {!p.is_default && (
+                        <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 10 }}
+                          onClick={() => void makeDefault(p.id)}>设为默认</button>
+                      )}
+                      <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: 10, color: '#f87171' }}
+                        onClick={() => void removeProvider(p.id)}>删除</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <input className="input text-xs" placeholder="显示名称，如 公司 DeepSeek"
+                value={newName} onChange={e => setNewName(e.target.value)} />
+              <input className="input text-xs" placeholder="Base URL"
+                value={newBaseUrl} onChange={e => setNewBaseUrl(e.target.value)} />
+              <input className="input text-xs" placeholder="模型 ID，如 deepseek-chat"
+                value={newModelId} onChange={e => setNewModelId(e.target.value)} />
+              <input className="input text-xs" type="password" autoComplete="off" placeholder="API Key"
+                value={newApiKey} onChange={e => setNewApiKey(e.target.value)} />
+            </div>
+            <label className="flex items-center gap-2 text-[11px] cursor-pointer" style={{ color: 'var(--c-text-secondary)' }}>
+              <input type="checkbox" checked={newAsDefault} onChange={e => setNewAsDefault(e.target.checked)} />
+              保存为默认供应商（未指定时将优先于 .env）
+            </label>
+            <button type="button" className="btn btn-primary btn-sm" disabled={savingProvider}
+              onClick={() => void submitNewProvider()}>
+              {savingProvider ? '保存中…' : '保存供应商'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Input area */}

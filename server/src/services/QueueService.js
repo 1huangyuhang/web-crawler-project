@@ -79,7 +79,7 @@ class QueueService {
 
   setupQueueHandlers() {
     this.crawlQueue.process('crawl', 4, async (job) => {
-      const { crawlId, type, url, depth } = job.data;
+      const { crawlId, type, url, depth, crawlRuntime } = job.data;
       console.log(`开始处理爬虫任务 ${job.id}, crawlId: ${crawlId}`);
 
       try {
@@ -92,7 +92,8 @@ class QueueService {
         const result = await runCrawler(type, url, depth, {
           onProgress: (pct, u) => {
             pushCrawlProgress(crawlId, pct, u || url, { phase: 'running' });
-          }
+          },
+          crawlRuntime
         });
         result.crawlId = crawlId;
 
@@ -176,7 +177,7 @@ class QueueService {
   }
 
   async addCrawlJob(crawlData) {
-    const { crawlId, type, url, depth, priority = 5 } = crawlData;
+    const { crawlId, type, url, depth, priority = 5, crawlRuntime } = crawlData;
     const d = Number(depth);
 
     if (!crawlId || !type || !url || !Number.isFinite(d) || d < 1) {
@@ -187,7 +188,7 @@ class QueueService {
     }
 
     const job = await this.crawlQueue.add('crawl', {
-      crawlId, type, url, depth: d
+      crawlId, type, url, depth: d, crawlRuntime: crawlRuntime || undefined
     }, {
       jobId: crawlId,
       priority: Math.min(10, Math.max(1, priority)),

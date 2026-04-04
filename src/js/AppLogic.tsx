@@ -24,8 +24,9 @@ export const useAppLogic = (): AppState => {
   // 监听页面加载和路由变化
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.substring(1) || 'home'
-      setCurrentPage(hash)
+      const raw = window.location.hash.substring(1) || 'home'
+      const pageId = raw.split('?')[0] || 'home'
+      setCurrentPage(pageId)
     }
 
     // 初始加载

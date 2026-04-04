@@ -31,7 +31,7 @@ function App() {
     <Provider store={store}>
       <CrawlerProvider>
         <Navbar currentPage={currentPage} />
-        <main className="flex-1">
+        <main className="app-shell-main flex min-h-0 flex-1 flex-col">
           <Suspense fallback={<div className="page-suspense-fallback">页面加载中…</div>}>
             {renderPage()}
           </Suspense>

@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useTheme } from '../../hooks/useTheme';
 import { useCrawler } from '../../js/useCrawler';
 
@@ -17,13 +19,24 @@ const NAV_ITEMS = [
 export default function Navbar({ currentPage }: NavbarProps) {
   const { theme, toggle } = useTheme();
   const [{ crawlerStatus, crawlProgress }] = useCrawler();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [currentPage]);
 
   return (
     <header
-      className="glass fixed top-0 left-0 right-0 z-50"
+      className="glass fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top,0px)]"
       style={{ borderTop: 'none', borderLeft: 'none', borderRight: 'none' }}
     >
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-5">
+      <div
+        className="app-layout flex h-14 w-full items-center justify-between px-5 lg:px-8"
+        style={{
+          paddingLeft: 'max(1.25rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(1.25rem, env(safe-area-inset-right, 0px))',
+        }}
+      >
         {/* Logo */}
         <a href="#home" className="flex items-center gap-2.5 shrink-0">
           <div
@@ -79,7 +92,7 @@ export default function Navbar({ currentPage }: NavbarProps) {
               title="爬取任务进行中"
             >
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--color-brand-400)]" />
-              爬取中 {crawlProgress}%
+              爬取中 · 约 {Math.round(crawlProgress)}%
             </span>
           )}
 
@@ -93,13 +106,13 @@ export default function Navbar({ currentPage }: NavbarProps) {
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
 
-          {/* Mobile menu - simplified */}
+          {/* Mobile menu */}
           <button
+            type="button"
             className="btn btn-ghost btn-sm md:hidden"
-            onClick={() => {
-              const el = document.getElementById('mobile-nav');
-              if (el) el.classList.toggle('hidden');
-            }}
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-nav"
             style={{ fontSize: '18px', padding: '6px 8px' }}
           >
             ☰
@@ -107,8 +120,32 @@ export default function Navbar({ currentPage }: NavbarProps) {
         </div>
       </div>
 
-      {/* Mobile nav dropdown */}
-      <div id="mobile-nav" className="hidden md:hidden border-t" style={{ borderColor: 'var(--c-border)' }}>
+      {mobileMenuOpen &&
+        createPortal(
+          <button
+            type="button"
+            className="fixed inset-0 z-[45] cursor-default border-0 p-0 md:hidden"
+            style={{
+              background: 'rgba(0,0,0,0.45)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+            aria-label="关闭菜单"
+            onClick={() => setMobileMenuOpen(false)}
+          />,
+          document.body,
+        )}
+
+      {/* Mobile nav dropdown（高于遮罩 z-45，与顶栏同属 z-50 上下文） */}
+      <div
+        id="mobile-nav"
+        className={`relative z-[55] md:hidden border-t ${mobileMenuOpen ? '' : 'hidden'}`}
+        style={{
+          borderColor: 'var(--c-border)',
+          paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+          paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+          paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        }}
+      >
         <div className="flex flex-col p-3 gap-1">
           {NAV_ITEMS.map(item => (
             <a
@@ -119,7 +156,7 @@ export default function Navbar({ currentPage }: NavbarProps) {
                 color: currentPage === item.id ? 'var(--color-brand-400)' : 'var(--c-text-secondary)',
                 background: currentPage === item.id ? 'rgba(66,135,245,0.08)' : 'transparent',
               }}
-              onClick={() => document.getElementById('mobile-nav')?.classList.add('hidden')}
+              onClick={() => setMobileMenuOpen(false)}
             >
               {item.label}
             </a>

@@ -426,8 +426,7 @@ export const websocketService = {
   connect: () => wsClient.connect(),
   disconnect: () => wsClient.disconnect(),
   ensureAuthenticated: (timeoutMs?: number) => wsClient.ensureAuthenticated(timeoutMs),
-  ensureAuthenticatedWithRecovery: (timeoutMs?: number) =>
-    wsClient.ensureAuthenticatedWithRecovery(timeoutMs),
+  ensureAuthenticatedWithRecovery: (timeoutMs?: number) => wsClient.ensureAuthenticatedWithRecovery(timeoutMs),
   subscribeToCrawl: (crawlId: string, handler: (data: any) => void) => wsClient.subscribeToCrawl(crawlId, handler),
   unsubscribeFromCrawl: (crawlId: string, handler: (data: any) => void) => wsClient.unsubscribeFromCrawl(crawlId, handler),
   onConnectionChange: (callback: (connected: boolean) => void) => wsClient.onConnectionChange(callback),

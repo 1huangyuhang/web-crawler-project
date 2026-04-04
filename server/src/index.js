@@ -17,7 +17,7 @@ const { authMiddleware } = require('./middleware/auth');
 
 // 导入路由
 const authRoutes = require('./routes/auth');
-const { runCrawler } = require('./services/crawlRunner');
+const { runCrawler, normalizeCrawlRuntime } = require('./services/crawlRunner');
 const { listenFromBasePort } = require('./devListen');
 
 function validateUrl(url) {
@@ -69,8 +69,9 @@ app.post('/api/crawl', async (req, res) => {
   let url;
   let depth;
   try {
-    ({ type, url, depth = 2 } = req.body);
+    ({ type, url, depth = 2, crawlRuntime: rawCrawlRuntime } = req.body);
     const depthNum = parseInt(String(depth), 10) || 2;
+    const crawlRuntime = normalizeCrawlRuntime(rawCrawlRuntime);
 
     // 安全验证参数
     if (!type || !url) {
@@ -96,7 +97,7 @@ app.post('/api/crawl', async (req, res) => {
     console.log('创建爬虫任务:', type, url, depthNum, 'crawlId:', crawlId);
 
     try {
-      await QueueService.addCrawlJob({ crawlId, type, url, depth: depthNum });
+      await QueueService.addCrawlJob({ crawlId, type, url, depth: depthNum, crawlRuntime });
       return res.json({
         success: true,
         id: crawlId,
@@ -110,7 +111,7 @@ app.post('/api/crawl', async (req, res) => {
       });
     } catch (queueErr) {
       console.warn('队列不可用，改为同步执行爬虫:', queueErr?.message || queueErr);
-      const result = await runCrawler(type, url, depthNum);
+      const result = await runCrawler(type, url, depthNum, { crawlRuntime });
       result.id = crawlId;
       result.status = result.error ? 'failed' : 'completed';
       const dataArr = Array.isArray(result.data) ? result.data : [];

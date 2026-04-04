@@ -91,7 +91,18 @@ flowchart TB
 - **Node.js** ≥ 18  
 - **Python 3**（建议 3.11+），并安装爬虫脚本所需依赖（如 `aiohttp`、`beautifulsoup4` 等，按你本地运行 `async_crawler_manager.py` 时的报错补齐）  
 - **Redis**（推荐）：用于 Bull 队列；未运行时部分环境可能退化为同步或报错，视 [server/src/services/QueueService.js](server/src/services/QueueService.js) 配置而定  
-- **PostgreSQL**（可选）：历史/用户等若启用 Prisma 则需配置 `DATABASE_URL`
+- **PostgreSQL**：爬虫历史（Prisma）与 **AI 分析（FastAPI）** 共用同一库时，需本机或 Docker 提供数据库（见下）  
+- **Python 3.11+**：用于一键启动 **FastAPI（8000）** 与 Alembic 迁移
+
+### 0. 启动 PostgreSQL（推荐 Docker）
+
+与默认连接串 `crawler_user / crawler_password / crawler_db` 一致：
+
+```bash
+docker compose up -d postgres
+```
+
+（本机已安装 PostgreSQL 且已创建同名库与用户时可跳过。）
 
 ### 1. 安装并启动（最常用）
 
@@ -105,7 +116,10 @@ npm run dev
 该命令会并行执行：
 
 - `npm run dev:server` → 启动 **Express**（默认端口 **3001**）  
-- `npm run dev:vite` → 启动 **Vite**（默认端口 **5173**）
+- `npm run dev:vite` → 启动 **Vite**（默认端口 **5173**）  
+- `npm run dev:fastapi` → 创建/使用 `backend/.venv`、**执行 `alembic upgrade head`**、启动 **FastAPI**（**8000**，供 AI 分析等 `/api/v1`）
+
+若本机无 `bash` 或暂不启 Python，可只用 Node + 前端：`npm run dev:node-vite`（此时 AI 页需另开终端手动启 FastAPI）。
 
 **健康检查**：浏览器或 curl 访问 `http://127.0.0.1:3001/api/health`（响应格式见 [API_DOCUMENTATION.md](API_DOCUMENTATION.md)）。
 
@@ -121,17 +135,15 @@ npm run dev:vite
 npm run dev:server
 ```
 
-### 2. 可选：启动 FastAPI（AI 分析等）
+### 2. 仅手动启动 FastAPI（调试用）
+
+一般无需执行：`npm run dev` 已包含 FastAPI。若单独启动：
 
 ```bash
-cd backend
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"     # 以你仓库 backend 的 pyproject 为准
-cp .env.example .env        # 按需填写数据库与 DEEPSEEK_API_KEY 等
-alembic upgrade head        # 若使用数据库迁移
-uvicorn app.main:app --reload --port 8000
+bash backend/scripts/run_dev.sh
 ```
+
+或：`cd backend && source .venv/bin/activate && alembic upgrade head && uvicorn app.main:app --reload --port 8000`
 
 OpenAPI：**http://127.0.0.1:8000/docs**
 

@@ -14,6 +14,47 @@ function sanitizeInput(input) {
   return input.replace(/[;&|`$(){}<>]/g, '');
 }
 
+function sanitizeUserAgent(ua) {
+  if (typeof ua !== 'string') return '';
+  return ua.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 512);
+}
+
+/** @param {unknown} n @param {number} lo @param {number} hi @param {number} fallback */
+function clampInt(n, lo, hi, fallback) {
+  const x = typeof n === 'number' && Number.isFinite(n) ? Math.floor(n) : NaN;
+  if (!Number.isFinite(x)) return fallback;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/** @param {unknown} n @param {number} lo @param {number} hi @param {number} fallback */
+function clampFloat(n, lo, hi, fallback) {
+  const x = typeof n === 'number' && Number.isFinite(n) ? n : NaN;
+  if (!Number.isFinite(x)) return fallback;
+  return Math.min(hi, Math.max(lo, x));
+}
+
+/**
+ * 来自前端的运行时参数（与模板 anti_crawl 映射一致）
+ * @param {Record<string, unknown> | null | undefined} raw
+ */
+function normalizeCrawlRuntime(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = /** @type {Record<string, unknown>} */ (raw);
+  const out = {};
+  const mc = clampInt(o.maxConcurrent, 1, 20, NaN);
+  if (Number.isFinite(mc)) out.maxConcurrent = mc;
+  const rd = clampFloat(o.requestDelay, 0, 60, NaN);
+  if (Number.isFinite(rd)) out.requestDelay = rd;
+  const to = clampInt(o.timeout, 5, 120, NaN);
+  if (Number.isFinite(to)) out.timeout = to;
+  const mr = clampInt(o.maxRetries, 0, 15, NaN);
+  if (Number.isFinite(mr)) out.maxRetries = mr;
+  if (typeof o.userAgent === 'string' && o.userAgent.trim()) {
+    out.userAgent = sanitizeUserAgent(o.userAgent.trim());
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 const ASYNC_CRAWLER_SCRIPT_PATH = path.join(__dirname, '../../../src/scripts/crawler/async_crawler_manager.py');
 const CRAWLER_SCRIPT_DIR = path.dirname(ASYNC_CRAWLER_SCRIPT_PATH);
 const REPO_ROOT = path.join(__dirname, '../../..');
@@ -43,11 +84,12 @@ function findPython() {
  * @param {string} crawlerType
  * @param {string} url
  * @param {number} depth
- * @param {{ onProgress?: (progress: number, currentUrl: string) => void }} [options]
+ * @param {{ onProgress?: (progress: number, currentUrl: string) => void, crawlRuntime?: Record<string, unknown> | null }} [options]
  * @returns {Promise<Object>}
  */
 function runCrawler(crawlerType, url, depth, options = {}) {
-  const { onProgress } = options;
+  const { onProgress, crawlRuntime: rawRuntime } = options;
+  const rt = normalizeCrawlRuntime(rawRuntime) || {};
   return new Promise((resolve, reject) => {
     try {
       const sanitizedType = sanitizeInput(crawlerType);
@@ -55,15 +97,26 @@ function runCrawler(crawlerType, url, depth, options = {}) {
       const sanitizedDepth = sanitizeInput(String(depth));
 
       const pythonPath = findPython();
+      const maxConcurrent = rt.maxConcurrent != null ? String(rt.maxConcurrent) : '5';
+      const requestDelay = rt.requestDelay != null ? String(rt.requestDelay) : '0.5';
       const args = [
         ASYNC_CRAWLER_SCRIPT_PATH,
         '--type', sanitizedType,
         '--url', sanitizedUrl,
         '--depth', sanitizedDepth,
         '--json',
-        '--max-concurrent', '5',
-        '--request-delay', '0.5'
+        '--max-concurrent', maxConcurrent,
+        '--request-delay', requestDelay
       ];
+      if (rt.timeout != null) {
+        args.push('--timeout', String(clampInt(rt.timeout, 5, 120, 10)));
+      }
+      if (rt.maxRetries != null) {
+        args.push('--max-retries', String(clampInt(rt.maxRetries, 0, 15, 3)));
+      }
+      if (rt.userAgent) {
+        args.push('--user-agent', String(rt.userAgent).slice(0, 512));
+      }
       console.log('执行爬虫命令:', pythonPath, args);
 
       const pyPathEnv = [CRAWLER_SCRIPT_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
@@ -77,13 +130,14 @@ function runCrawler(crawlerType, url, depth, options = {}) {
       /** 队列执行时通过 WS 推送“进行中”进度（Python 本身不吐细粒度进度） */
       let progressTimer = null;
       if (typeof onProgress === 'function') {
-        let tick = 10;
+        const startedAt = Date.now();
+        const cap = 92;
         progressTimer = setInterval(() => {
-          if (tick < 92) {
-            tick = Math.min(92, tick + 4);
-            onProgress(tick, sanitizedUrl);
-          }
-        }, 2200);
+          const elapsedSec = (Date.now() - startedAt) / 1000;
+          // 先快后慢逼近 cap，避免长时间线性“假进度”与用户直觉不符
+          const pct = Math.min(cap, Math.round(96 * (1 - Math.exp(-elapsedSec / 34))));
+          onProgress(pct, sanitizedUrl);
+        }, 650);
       }
 
       pythonProcess.stdout.on('data', (data) => {
@@ -184,4 +238,4 @@ function runCrawler(crawlerType, url, depth, options = {}) {
   });
 }
 
-module.exports = { runCrawler, sanitizeInput };
+module.exports = { runCrawler, sanitizeInput, normalizeCrawlRuntime };

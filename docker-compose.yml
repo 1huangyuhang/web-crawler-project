@@ -1,0 +1,22 @@
+# 与 server/prisma、backend FastAPI 默认连接串一致
+# 使用：docker compose up -d postgres
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: spiderx-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: crawler_user
+      POSTGRES_PASSWORD: crawler_password
+      POSTGRES_DB: crawler_db
+    volumes:
+      - spiderx_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crawler_user -d crawler_db"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  spiderx_pgdata:
