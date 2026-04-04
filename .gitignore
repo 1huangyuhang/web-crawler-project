@@ -26,12 +26,20 @@ dist-ssr
 # Python
 __pycache__/
 *.py[cod]
+*.egg-info/
+
+# 根目录误生成的空文件 / CLI 输出（勿提交）
+/my-website@*
+/vite
 
 # Env
 .env
 .env.*
 !.env.example
 !.env.production.example
+
+# 服务器上从 deploy/production.env.example 复制的真实环境（含密钥）
+deploy/production.env
 
 .cursor/
 .claude/

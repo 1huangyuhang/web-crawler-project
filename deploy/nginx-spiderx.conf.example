@@ -1,0 +1,38 @@
+# 复制到 /etc/nginx/sites-available/ 并按域名修改后启用：
+#   sudo ln -s /etc/nginx/sites-available/spiderx /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# 证书（Let's Encrypt）：
+#   sudo apt install certbot python3-certbot-nginx
+#   sudo certbot --nginx -d spiderx.example.com
+#
+# 上游为 Node 生产进程（npm run start:prod），默认 127.0.0.1:3001
+
+upstream spiderx_node {
+    server 127.0.0.1:3001;
+    keepalive 32;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name spiderx.example.com;
+
+    # 申请证书前仅 HTTP；certbot 通常会改为 443 并保留 80 跳转
+    location / {
+        proxy_pass http://spiderx_node;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket（爬虫进度）
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
+}
+
+# certbot 会为 HTTPS 生成类似块；若手动配置 443，需包含同上 proxy_set_header，
+# 并设置 ssl_certificate / ssl_certificate_key。

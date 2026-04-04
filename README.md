@@ -154,7 +154,7 @@ npm run build
 npm run start:prod
 ```
 
-默认 **`LISTEN_HOST=0.0.0.0`**、**`PORT=3001`**：同一 Wi‑Fi 下用手机浏览器打开 **`http://<电脑局域网IP>:3001`** 即可。Node 会托管 `dist/`、转发 **`/api/v1`** 到本机 FastAPI（**`FASTAPI_URL`**，默认 `http://127.0.0.1:8000`）。完整步骤、防火墙与 HTTPS 见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
+默认 **`LISTEN_HOST=0.0.0.0`**、**`PORT=3001`**：同一 Wi‑Fi 下用手机浏览器打开 **`http://<电脑局域网IP>:3001`** 即可。Node 会托管 `dist/`、转发 **`/api/v1`** 到本机 FastAPI（**`FASTAPI_URL`**，默认 `http://127.0.0.1:8000`）。完整步骤、防火墙、HTTPS（Nginx/Caddy）、环境变量见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**；Node 运行时变量模板见 **[deploy/production.env.example](deploy/production.env.example)**，Nginx 示例见 **[deploy/nginx-spiderx.conf.example](deploy/nginx-spiderx.conf.example)**。
 
 仅本地预览构建结果（无网关）：`npm run preview`。
 
