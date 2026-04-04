@@ -298,6 +298,8 @@ sequenceDiagram
 
 ## 10. 构建、测试与 `tsconfig` 排除说明
 
+**本地如何安装依赖、分终端启动、健康检查**：见 [STARTUP.md](STARTUP.md)。
+
 | 命令 | 作用 |
 |------|------|
 | `npm run dev` | 并行启动 `server`（Node）与 Vite |
@@ -339,6 +341,7 @@ find . \( -path ./node_modules -o -path ./.git -o -path ./dist -o -path ./server
 | 文档 | 角色 |
 |------|------|
 | **docs/PROJECT_BLUEPRINT.md**（本文） | 新手蓝图：目录 + 功能 + 栈 + 图 |
+| **docs/STARTUP.md** | 前后端与可选 FastAPI 的逐步启动说明 |
 | README.md | 安装、启动、端口、环境变量 |
 | ARCHITECTURE_DOCUMENT.md | 深度设计与历史叙述 |
 | API_DOCUMENTATION.md | Node HTTP 明细 |
