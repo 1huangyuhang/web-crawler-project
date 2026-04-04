@@ -13,6 +13,43 @@ global.localStorage = localStorageMock as any
 // Mock fetch
 global.fetch = vi.fn()
 
+// Mock logger for each test
+let mockLoggerInstance: any
+vi.mock('./logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+    getLogs: vi.fn().mockReturnValue([]),
+    clearLogs: vi.fn(),
+    setUserId: vi.fn(),
+    setUserSession: vi.fn(),
+    clearUserInfo: vi.fn(),
+    destroy: vi.fn(),
+    updateConfig: vi.fn(),
+    flush: vi.fn(),
+    setContext: vi.fn()
+  },
+  createLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    generateRequestId: vi.fn().mockReturnValue('test-request-id'),
+    getLogs: vi.fn().mockReturnValue([]),
+    clearLogs: vi.fn(),
+    setUserId: vi.fn(),
+    setUserSession: vi.fn(),
+    clearUserInfo: vi.fn(),
+    destroy: vi.fn(),
+    updateConfig: vi.fn(),
+    flush: vi.fn(),
+    setContext: vi.fn()
+  }))
+}))
+
 describe('LoggerService', () => {
   beforeEach(() => {
     vi.clearAllMocks()

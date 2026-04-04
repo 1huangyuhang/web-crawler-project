@@ -61,20 +61,23 @@ class BaseCrawler:
     def _crawl(self, url: str, current_depth: int):
         """
         递归爬取方法
-        
+
         Args:
             url: 当前URL
             current_depth: 当前深度
         """
         if current_depth >= self.depth or url in self.visited_urls:
             return
-        
+
         self.visited_urls.add(url)
-        
+
         try:
             response = self._fetch_url(url)
             if response:
                 self._process_page(url, response, current_depth)
+            else:
+                # 页面获取失败，但是不影响整体爬取
+                pass
         except Exception as e:
             # 移除 print 语句，避免污染 JSON 输出
             pass
@@ -82,7 +85,7 @@ class BaseCrawler:
     def _fetch_url(self, url: str) -> Optional[BeautifulSoup]:
         """
         获取URL内容
-        
+
         Args:
             url: 要获取的URL
             
@@ -93,7 +96,7 @@ class BaseCrawler:
             headers = {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
-            response = requests.get(url, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10, verify=False)
             response.raise_for_status()
             return BeautifulSoup(response.text, 'html.parser')
         except Exception as e:

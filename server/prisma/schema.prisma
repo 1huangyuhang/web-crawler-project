@@ -10,18 +10,170 @@ datasource db {
   url      = "postgresql://crawler_user:crawler_password@localhost:5432/crawler_db"
 }
 
-model CrawlHistory {
-  id        Int      @id @default(autoincrement())
-  crawlId   String   @unique @map("crawl_id")
-  timestamp BigInt
-  url       String
-  type      String
-  depth     Int
-  items     Int
-  time      Float   @map("time")
-  data      Json?
-  error     String?
-  createdAt DateTime @default(now()) @map("created_at")
+// 枚举类型定义
+enum CrawlStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
 
-  @@map("crawl_history")
+enum CrawlerType {
+  LINK
+  CONTENT
+  IMAGE
+}
+
+// 爬取任务记录表 - 主表，存储所有爬取任务的信息
+model CrawlRecord {
+  id           String      @id @default(uuid())
+  type         CrawlerType // 爬虫类型: LINK, CONTENT, IMAGE
+  targetUrl    String      @db.Text // 目标URL
+  depth        Int // 爬取深度
+  status       CrawlStatus @default(COMPLETED) // 状态: PENDING, RUNNING, COMPLETED, FAILED, CANCELLED
+  totalItems   Int         @default(0) // 总项目数
+  successCount Int         @default(0) // 成功数
+  errorCount   Int         @default(0) // 失败数
+  time         Float       @default(0) // 执行时间(秒)
+  data         Json? // 爬取数据 (JSON格式，存储不同类型的爬取结果)
+  error        String? // 错误信息
+  configId     String? // 关联的爬虫配置ID
+  createdAt    DateTime    @default(now()) // 创建时间
+  updatedAt    DateTime    @updatedAt // 更新时间
+
+  // 关系定义
+  config CrawlerConfig? @relation(fields: [configId], references: [id], onDelete: SetNull)
+
+  // 索引优化
+  @@index([type, status]) // 按类型和状态查询
+  @@index([type, status, createdAt]) // 复合查询优化
+  @@index([createdAt]) // 按时间查询
+  @@index([targetUrl, status]) // 按URL和状态查询
+  @@index([configId]) // 按配置ID查询
+}
+
+// 系统配置表 - 存储系统级别的配置信息
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique // 配置键
+  value     Json // 配置值 (JSON格式，支持复杂配置)
+  updatedAt DateTime @updatedAt // 更新时间
+
+  @@index([key]) // 按键查询
+}
+
+// 爬虫任务队列表 - 用于异步任务队列管理
+model CrawlQueue {
+  id          String    @id @default(uuid())
+  type        String // 爬虫类型: link, content, image
+  targetUrl   String    @db.Text // 目标URL
+  depth       Int // 爬取深度
+  priority    Int       @default(5) // 优先级 (1-10，数字越大优先级越高)
+  status      String // 状态: pending, processing, completed, failed
+  attempts    Int       @default(0) // 当前尝试次数
+  maxAttempts Int       @default(3) // 最大尝试次数
+  createdAt   DateTime  @default(now()) // 创建时间
+  updatedAt   DateTime  @updatedAt // 更新时间
+  startedAt   DateTime? // 开始处理时间
+  completedAt DateTime? // 完成时间
+
+  // 索引优化
+  @@index([status, priority, createdAt]) // 队列查询优化
+  @@index([type]) // 按类型查询
+}
+
+// 爬取统计数据表 - 存储爬取任务的详细统计信息
+model CrawlStats {
+  id              String   @id @default(uuid())
+  crawlId         String   @unique // 关联的爬取任务ID
+  totalUrls       Int      @default(0) // 总URL数
+  successUrls     Int      @default(0) // 成功URL数
+  failedUrls      Int      @default(0) // 失败URL数
+  totalLinks      Int      @default(0) // 总链接数 (link类型)
+  totalImages     Int      @default(0) // 总图片数 (image类型)
+  totalContent    Int      @default(0) // 总内容数 (content类型)
+  avgResponseTime Float    @default(0) // 平均响应时间
+  createdAt       DateTime @default(now()) // 创建时间
+  updatedAt       DateTime @updatedAt // 更新时间
+
+  @@index([crawlId]) // 按爬取ID查询
+  @@index([createdAt]) // 按时间查询
+}
+
+// 访问日志表 - 记录API访问日志
+model AccessLog {
+  id           String   @id @default(uuid())
+  ipAddress    String? // 客户端IP地址
+  userAgent    String? // 用户代理
+  endpoint     String // API端点
+  method       String // HTTP方法
+  statusCode   Int // 状态码
+  responseTime Float // 响应时间(毫秒)
+  createdAt    DateTime @default(now()) // 创建时间
+
+  // 索引优化
+  @@index([createdAt]) // 按时间查询
+  @@index([ipAddress]) // 按IP查询
+  @@index([endpoint]) // 按端点查询
+}
+
+// 爬虫配置表 - 存储不同爬虫类型的配置模板
+model CrawlerConfig {
+  id           String        @id @default(uuid())
+  name         String        @unique // 配置名称
+  description  String? // 配置描述
+  type         String // 爬虫类型: link, content, image
+  maxDepth     Int           @default(3) // 最大爬取深度
+  maxPages     Int           @default(100) // 最大爬取页面数
+  timeout      Int           @default(30) // 超时时间(秒)
+  userAgent    String? // 用户代理
+  headers      Json? // 请求头配置
+  rules        Json? // 爬虫规则配置
+  isActive     Boolean       @default(true) // 是否激活
+  createdAt    DateTime      @default(now()) // 创建时间
+  updatedAt    DateTime      @updatedAt // 更新时间
+  crawlRecords CrawlRecord[]
+
+  // 索引优化
+  @@index([type, isActive]) // 按类型和激活状态查询
+  @@index([name]) // 按名称查询
+}
+
+// 用户表 - 存储系统用户信息
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique // 用户名
+  email        String   @unique // 邮箱
+  passwordHash String   // 密码哈希
+  isActive     Boolean  @default(true) // 是否激活
+  createdAt    DateTime @default(now()) // 创建时间
+  updatedAt    DateTime @updatedAt // 更新时间
+
+  // 关系
+  apiKeys      ApiKey[]
+  crawlRecords CrawlRecord[] // 用户的爬取记录
+
+  // 索引
+  @@index([email])
+}
+
+// API密钥表 - 存储API密钥信息
+model ApiKey {
+  id          String   @id @default(uuid())
+  name        String   // 密钥名称
+  keyHash     String   @unique // 密钥哈希
+  userId      String   // 所属用户ID
+  permissions Json     // 权限配置
+  isActive    Boolean  @default(true) // 是否激活
+  lastUsedAt  DateTime? // 最后使用时间
+  createdAt   DateTime @default(now()) // 创建时间
+  updatedAt   DateTime @updatedAt // 更新时间
+
+  // 关系
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 索引
+  @@index([userId])
+  @@index([keyHash])
 }
