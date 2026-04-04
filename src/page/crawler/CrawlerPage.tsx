@@ -1,252 +1,220 @@
-// 爬虫功能页面组件
-
 import type { ChangeEvent } from 'react';
 import { useCrawler } from '../../js/useCrawler';
 
-/**
- * 爬虫功能页面组件
- * 用于配置爬虫参数和启动爬虫
- */
+const TYPES = [
+  { id: 'link',    label: '链接爬虫', icon: '🔗', desc: '递归爬取所有链接' },
+  { id: 'content', label: '内容爬虫', icon: '📄', desc: '提取文本和关键词' },
+  { id: 'image',   label: '图片爬虫', icon: '🖼️', desc: '采集图片资源' },
+];
+
+function fmt(s: number) {
+  if (s < 1) return '< 1s';
+  if (s < 60) return `${s.toFixed(1)}s`;
+  return `${Math.floor(s / 60)}m ${Math.round(s % 60)}s`;
+}
+
 const CrawlerPage = () => {
-  // 使用爬虫 hooks
   const [state, actions] = useCrawler();
-  
-  // 解构状态和操作
   const {
-    crawlerType,
-    targetUrl,
-    crawlerDepth,
-    crawlerStatus,
-    crawlerResult,
-    serviceStatus,
-    crawlProgress,
-    currentUrl
+    crawlerType, targetUrl, crawlerDepth, crawlerStatus,
+    crawlerResult, runningJobMeta, serviceStatus, crawlProgress, currentUrl,
+    crawlWarning,
   } = state;
-  
   const {
-    setCrawlerType,
-    setTargetUrl,
-    setCrawlerDepth,
-    handleStartCrawl,
-    handleReset
+    setCrawlerType, setTargetUrl, setCrawlerDepth,
+    handleStartCrawl, handleReset, recheckBackend,
   } = actions;
 
-  // 处理爬虫类型变化
-  const handleCrawlerTypeChange = (type: string) => {
-    setCrawlerType(type);
-  };
-
-  // 处理URL输入变化
-  const handleUrlChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setTargetUrl(e.target.value);
-  };
-
-  // 处理深度变化
-  const handleDepthChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setCrawlerDepth(parseInt(e.target.value));
-  };
+  const isRunning = crawlerStatus === 'running';
 
   return (
-    <div className="crawler-page">
-      <div className="hero-section">
-        <h1 className="hero-title">爬虫功能</h1>
-        <div className="hero-divider"></div>
-        <p className="features-description">
-          配置爬虫参数并启动爬虫
-        </p>
+    <div className="page-enter mx-auto max-w-3xl px-5 pt-24 pb-16">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight mb-1" style={{ color: 'var(--c-text)' }}>新建爬虫任务</h1>
+        <p className="text-sm" style={{ color: 'var(--c-text-secondary)' }}>配置参数并启动爬虫</p>
       </div>
-      
-      <div className="crawler-config">
-        {/* 服务状态 */}
-        <section className="crawler-config-section">
-          <h2 className="crawler-config-title">服务状态</h2>
-          <div className="crawler-service-status">
-            {serviceStatus === 'checking' && (
-              <span className="service-status checking">检查服务状态中...</span>
-            )}
-            {serviceStatus === 'available' && (
-              <span className="service-status available">后端服务可用</span>
-            )}
-            {serviceStatus === 'unavailable' && (
-              <span className="service-status unavailable">后端服务不可用，请启动后端服务</span>
-            )}
+
+      {/* Service status */}
+      {serviceStatus === 'unavailable' && (
+        <div className="card p-4 mb-6 flex items-center justify-between" style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
+          <div>
+            <p className="text-sm font-medium" style={{ color: '#f87171' }}>后端未就绪</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-muted)' }}>
+              请运行 npm run dev 同时启动前后端
+            </p>
           </div>
-        </section>
-        
-        {/* 爬虫类型选择 */}
-        <section className="crawler-config-section">
-          <h2 className="crawler-config-title">爬虫类型</h2>
-          <div className="crawler-type-options">
-            <div className="crawler-type-option">
-              <input
-                type="radio"
-                id="crawler-type-link"
-                name="crawler-type"
-                value="link"
-                checked={crawlerType === 'link'}
-                onChange={() => handleCrawlerTypeChange('link')}
-              />
-              <label htmlFor="crawler-type-link">链接爬虫</label>
-            </div>
-            <div className="crawler-type-option">
-              <input
-                type="radio"
-                id="crawler-type-content"
-                name="crawler-type"
-                value="content"
-                checked={crawlerType === 'content'}
-                onChange={() => handleCrawlerTypeChange('content')}
-              />
-              <label htmlFor="crawler-type-content">内容爬虫</label>
-            </div>
-            <div className="crawler-type-option">
-              <input
-                type="radio"
-                id="crawler-type-image"
-                name="crawler-type"
-                value="image"
-                checked={crawlerType === 'image'}
-                onChange={() => handleCrawlerTypeChange('image')}
-              />
-              <label htmlFor="crawler-type-image">图片爬虫</label>
-            </div>
-          </div>
-        </section>
-        
-        {/* 爬虫参数配置 */}
-        <section className="crawler-config-section">
-          <h2 className="crawler-config-title">爬虫参数</h2>
-          <div className="crawler-params">
-            <div className="crawler-param-item">
-              <label htmlFor="target-url">目标URL:</label>
-              <input
-                type="text"
-                id="target-url"
-                value={targetUrl}
-                onChange={handleUrlChange}
-                placeholder="https://example.com"
-                disabled={crawlerStatus === 'running'}
-              />
-            </div>
-            <div className="crawler-param-item">
-              <div className="crawler-param-label-container">
-                <label htmlFor="crawler-depth">爬取深度:</label>
-                <div className="crawler-tooltip">
-                  <span className="crawler-tooltip-icon">?</span>
-                  <span className="crawler-tooltip-text">
-                    爬取深度指的是爬虫从起始URL开始，递归跟随链接的层级数。
-                    深度越大，爬取的范围越广，但耗时也越长。
-                    建议设置为2-3，适合大多数爬取需求。
-                  </span>
-                </div>
-              </div>
-              <input
-                type="number"
-                id="crawler-depth"
-                min="1"
-                max="10"
-                value={crawlerDepth}
-                onChange={handleDepthChange}
-                disabled={crawlerStatus === 'running'}
-              />
-            </div>
-          </div>
-        </section>
-        
-        {/* 爬虫控制 */}
-        <section className="crawler-control">
-          <button
-            className="crawler-start-button"
-            onClick={handleStartCrawl}
-            disabled={crawlerStatus === 'running' || !targetUrl}
-          >
-            {crawlerStatus === 'running' ? '爬取中...' : '开始爬取'}
-          </button>
-          <button
-            className="crawler-reset-button"
-            onClick={handleReset}
-            disabled={crawlerStatus === 'running'}
-          >
-            重置
-          </button>
-        </section>
-        
-        {/* 爬取进度 */}
-        {crawlerStatus === 'running' && (
-          <section className="crawler-progress">
-            <h2 className="crawler-progress-title">爬取进度</h2>
-            <div className="crawler-progress-content">
-              <div className="crawler-progress-bar-container">
-                <div 
-                  className="crawler-progress-bar"
-                  style={{ width: `${crawlProgress}%` }}
-                ></div>
-              </div>
-              <div className="crawler-progress-info">
-                <span className="crawler-progress-percentage">{crawlProgress}%</span>
-                {currentUrl && (
-                  <span className="crawler-progress-url">{currentUrl}</span>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-        
-        {/* 爬取结果 */}
-        <section className="crawler-result">
-          <h2 className="crawler-result-title">爬取结果</h2>
-          <div className="crawler-result-content">
-            {crawlerResult ? (
-              <>
-                <div className="crawler-result-item">
-                  <span className="crawler-result-label">目标URL:</span>
-                  <span className="crawler-result-value">{crawlerResult.url}</span>
-                </div>
-                <div className="crawler-result-item">
-                  <span className="crawler-result-label">爬虫类型:</span>
-                  <span className="crawler-result-value">
-                    {crawlerResult.type === 'link' ? '链接爬虫' : 
-                     crawlerResult.type === 'content' ? '内容爬虫' : '图片爬虫'}
-                  </span>
-                </div>
-                <div className="crawler-result-item">
-                  <span className="crawler-result-label">爬取深度:</span>
-                  <span className="crawler-result-value">{crawlerResult.depth}</span>
-                </div>
-                <div className="crawler-result-item">
-                  <span className="crawler-result-label">爬取数量:</span>
-                  <span className="crawler-result-value">{crawlerResult.items} 个</span>
-                </div>
-                <div className="crawler-result-item">
-                  <span className="crawler-result-label">爬取时间:</span>
-                  <span className="crawler-result-value">{crawlerResult.time} 秒</span>
-                </div>
-                {crawlerResult.error && (
-                  <div className="crawler-result-item crawler-result-error">
-                    <span className="crawler-result-label">错误信息:</span>
-                    <span className="crawler-result-value error">{crawlerResult.error}</span>
-                  </div>
-                )}
-                {!crawlerResult.error && (
-                  <div className="crawler-result-action">
-                    <button 
-                      className="crawler-analyze-button"
-                      onClick={() => window.location.hash = 'analisys'}
-                    >
-                      分析结果
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="crawler-result-empty">
-                <p>暂无爬取结果</p>
-                <p className="crawler-result-empty-hint">请配置爬虫参数并点击"开始爬取"按钮</p>
-              </div>
-            )}
-          </div>
-        </section>
+          <button className="btn btn-secondary btn-sm" onClick={() => void recheckBackend()}>重新检测</button>
+        </div>
+      )}
+
+      {/* Type selection */}
+      <div className="card p-5 mb-4">
+        <label className="block text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: 'var(--c-text-muted)' }}>
+          爬虫类型
+        </label>
+        <div className="grid grid-cols-3 gap-3">
+          {TYPES.map(t => {
+            const active = crawlerType === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setCrawlerType(t.id)}
+                disabled={isRunning}
+                className="card card-interactive p-4 text-left transition-all"
+                style={{
+                  borderColor: active ? 'var(--color-brand-500)' : undefined,
+                  boxShadow: active ? '0 0 0 3px rgba(66,135,245,0.12)' : undefined,
+                  opacity: isRunning ? 0.6 : 1,
+                  cursor: isRunning ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <div className="text-xl mb-1">{t.icon}</div>
+                <div className="text-xs font-semibold" style={{ color: active ? 'var(--color-brand-400)' : 'var(--c-text)' }}>{t.label}</div>
+                <div className="text-[11px] mt-0.5" style={{ color: 'var(--c-text-muted)' }}>{t.desc}</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
+
+      {/* URL + Depth */}
+      <div className="card p-5 mb-4">
+        <label className="block text-xs font-semibold mb-3 uppercase tracking-wider" style={{ color: 'var(--c-text-muted)' }}>
+          爬取参数
+        </label>
+        <div className="mb-4">
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--c-text-secondary)' }}>目标 URL</label>
+          <input
+            className="input"
+            type="url"
+            placeholder="https://example.com"
+            value={targetUrl}
+            onChange={(e) => setTargetUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !isRunning && handleStartCrawl()}
+            disabled={isRunning}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--c-text-secondary)' }}>
+            爬取深度
+            <span className="ml-2 font-normal" style={{ color: 'var(--c-text-muted)' }}>
+              (1-10, 越大范围越广)
+            </span>
+          </label>
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={10}
+            value={crawlerDepth}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
+              const n = parseInt(e.target.value, 10);
+              setCrawlerDepth(Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 2);
+            }}
+            disabled={isRunning}
+            style={{ maxWidth: 120 }}
+          />
+        </div>
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex gap-3 mb-6">
+        <button
+          className="btn btn-primary btn-lg flex-1"
+          onClick={handleStartCrawl}
+          disabled={isRunning || !targetUrl}
+          style={{ opacity: isRunning || !targetUrl ? 0.5 : 1 }}
+        >
+          {isRunning ? '爬取中...' : '开始爬取'}
+        </button>
+        <button className="btn btn-secondary btn-lg" onClick={handleReset} disabled={isRunning}>
+          重置
+        </button>
+      </div>
+
+      {/* Inline warning (replaces alert popups) */}
+      {crawlWarning && (
+        <div className="card p-3 mb-4 flex items-center gap-3" style={{ borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.06)' }}>
+          <span className="text-sm" style={{ color: 'var(--color-warn)' }}>{crawlWarning}</span>
+        </div>
+      )}
+
+      {/* Progress */}
+      {isRunning && (
+        <div className="card p-5 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold" style={{ color: 'var(--c-text)' }}>爬取进度</span>
+            <span className="text-xs font-bold" style={{ color: 'var(--color-brand-400)' }}>{crawlProgress}%</span>
+          </div>
+          <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--c-bg-input)' }}>
+            <div
+              className="h-full rounded-full transition-all duration-500 ease-out"
+              style={{
+                width: `${crawlProgress}%`,
+                background: 'linear-gradient(90deg, var(--color-brand-500), var(--color-accent))',
+                animation: crawlProgress < 100 ? 'progress-pulse 2s infinite' : 'none',
+              }}
+            />
+          </div>
+          {currentUrl && (
+            <p className="text-[11px] mt-2 truncate" style={{ color: 'var(--c-text-muted)' }}>
+              正在爬取: {currentUrl}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Running job hint */}
+      {isRunning && runningJobMeta && !crawlerResult && (
+        <div className="card p-5 mb-4">
+          <p className="text-xs font-medium mb-3" style={{ color: 'var(--c-text-secondary)' }}>
+            任务已提交，正在执行中...
+          </p>
+          <div className="grid grid-cols-2 gap-3 text-xs">
+            <div><span style={{ color: 'var(--c-text-muted)' }}>任务ID: </span>{runningJobMeta.id}</div>
+            <div><span style={{ color: 'var(--c-text-muted)' }}>类型: </span>{TYPES.find(t => t.id === runningJobMeta.type)?.label}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Result */}
+      {crawlerResult && (
+        <div className="card overflow-hidden">
+          <div className="p-4 border-b" style={{ borderColor: 'var(--c-border)', background: 'var(--c-bg-raised)' }}>
+            <h2 className="text-sm font-semibold" style={{ color: 'var(--c-text)' }}>爬取结果</h2>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {[
+                { label: '目标URL', value: crawlerResult.url },
+                { label: '类型', value: TYPES.find(t => t.id === crawlerResult.type)?.label || crawlerResult.type },
+                { label: '深度', value: crawlerResult.depth },
+                { label: '数据量', value: `${crawlerResult.items ?? 0} 条` },
+                { label: '耗时', value: fmt(crawlerResult.time ?? 0) },
+              ].map(r => (
+                <div key={r.label} className="text-xs">
+                  <span style={{ color: 'var(--c-text-muted)' }}>{r.label}: </span>
+                  <span className="font-medium" style={{ color: 'var(--c-text)' }}>{r.value}</span>
+                </div>
+              ))}
+            </div>
+
+            {crawlerResult.error && (
+              <div className="p-3 rounded-lg text-xs leading-relaxed mb-4"
+                style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.15)' }}>
+                {crawlerResult.error}
+              </div>
+            )}
+
+            {!crawlerResult.error && crawlerStatus === 'completed' && (
+              <a href="#analisys" className="btn btn-primary btn-sm">
+                查看详细数据 →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

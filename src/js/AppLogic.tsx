@@ -74,6 +74,16 @@ export const pageConfigs: Record<string, PageConfig> = {
     showNavbar: true,
     showFooter: true
   },
+  templates: {
+    path: 'templates',
+    showNavbar: true,
+    showFooter: true
+  },
+  ai: {
+    path: 'ai',
+    showNavbar: true,
+    showFooter: true
+  },
   settings: {
     path: 'settings',
     showNavbar: true,

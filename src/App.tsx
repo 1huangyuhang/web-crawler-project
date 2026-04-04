@@ -1,38 +1,43 @@
-import SimpleNavbar from './components/Navbar/SimpleNavbar'
+import { lazy, Suspense } from 'react'
+import { Provider } from 'react-redux'
+import { store } from './store'
+import Navbar from './components/Navbar/Navbar'
 import { HomeContent } from './page/home/HomeComponents'
-import Footer from './components/Footer/Footer'
-import AnalisysPage from './page/analisys/AnalisysPage'
-import CrawlerPage from './page/crawler/CrawlerPage'
-import SettingsPage from './page/settings/SettingsPage'
-import { useAppLogic, getPageConfig } from './js/AppLogic'
-function App() {
-  // 使用应用逻辑钩子
-  const { currentPage } = useAppLogic()
-  
-  // 获取当前页面配置
-  const pageConfig = getPageConfig(currentPage)
+import { useAppLogic } from './js/AppLogic'
+import { CrawlerProvider } from './js/useCrawler'
 
-  // 渲染当前页面
+const CrawlerPage = lazy(() => import('./page/crawler/CrawlerPage'))
+const AnalisysPage = lazy(() => import('./page/analisys/AnalisysPage'))
+const TemplatesPage = lazy(() => import('./page/templates/TemplatesPage'))
+const AiAnalysisPage = lazy(() => import('./page/ai/AiAnalysisPage'))
+const SettingsPage = lazy(() => import('./page/settings/SettingsPage'))
+
+function App() {
+  const { currentPage } = useAppLogic()
+
   const renderPage = () => {
     switch (currentPage) {
-      case 'analisys':
-        return <AnalisysPage />;
-      case 'crawler':
-        return <CrawlerPage />;
-      case 'settings':
-        return <SettingsPage />;
+      case 'analisys':  return <AnalisysPage />;
+      case 'crawler':   return <CrawlerPage />;
+      case 'templates': return <TemplatesPage />;
+      case 'ai':        return <AiAnalysisPage />;
+      case 'settings':  return <SettingsPage />;
       case 'home':
-      default:
-        return <HomeContent />;
+      default:          return <HomeContent />;
     }
   };
 
   return (
-    <div>
-      {pageConfig.showNavbar && <SimpleNavbar />}
-      {renderPage()}
-      {pageConfig.showFooter && <Footer />}
-    </div>
+    <Provider store={store}>
+      <CrawlerProvider>
+        <Navbar currentPage={currentPage} />
+        <main className="flex-1">
+          <Suspense fallback={<div className="page-suspense-fallback">页面加载中…</div>}>
+            {renderPage()}
+          </Suspense>
+        </main>
+      </CrawlerProvider>
+    </Provider>
   )
 }
 

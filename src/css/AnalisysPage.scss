@@ -1,658 +1,563 @@
-// 爬虫历史记录页面样式文件
-
-// 导入变量和混合器
 @import './_variables';
 @import './_mixins';
 
-// 爬虫历史记录页面容器
+// ─── 页面布局 ────────────────────────────────────────────────────────────
+
 .analysis-page {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: map-get($spacing, 4xl) map-get($spacing, lg);
+  padding: map-get($spacing, 3xl) map-get($spacing, lg) map-get($spacing, 4xl);
 }
 
-// 爬虫历史记录内容
-.analysis-content {
-  margin-top: map-get($spacing, 4xl);
+// ─── 统计栏 ──────────────────────────────────────────────────────────────
+
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: map-get($spacing, md);
+  margin-top: map-get($spacing, 2xl);
+}
+
+.stat-card {
+  background: #f9fafb;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  padding: map-get($spacing, lg) map-get($spacing, md);
+  text-align: center;
+
+  .stat-value {
+    font-size: map-get($font-size, 2xl);
+    font-weight: 700;
+    color: $text-color;
+    line-height: 1;
+  }
+  .stat-label {
+    font-size: map-get($font-size, xs);
+    color: $text-secondary-color;
+    margin-top: map-get($spacing, xs);
+  }
+
+  &.stat-success .stat-value { color: #10b981; }
+  &.stat-failed  .stat-value { color: #ef4444; }
+}
+
+// ─── 主布局（左列表 + 右详情） ────────────────────────────────────────────
+
+.analysis-layout {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: map-get($spacing, xl);
+  margin-top: map-get($spacing, 2xl);
+  min-height: 60vh;
+  align-items: start;
+}
+
+.analysis-list-panel {
   display: flex;
   flex-direction: column;
-  gap: map-get($spacing, 3xl);
+  gap: map-get($spacing, md);
 }
 
-// 爬虫历史记录概览
-.analysis-overview {
-  background-color: #f9fafb;
-  padding: map-get($spacing, 2xl);
+.analysis-detail-panel {
+  position: sticky;
+  top: 80px;
+  min-height: 400px;
+
+  &:not(.analysis-detail-panel--open) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// ─── 工具栏 ──────────────────────────────────────────────────────────────
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, sm);
+  background: #f9fafb;
+  padding: map-get($spacing, md);
   border-radius: $border-radius-lg;
-  box-shadow: $shadow-sm;
-  
-  // 爬虫历史记录概览头部
-  .analysis-overview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: map-get($spacing, 2xl);
-    
-    // 爬虫历史记录概览标题
-    .analysis-overview-title {
-      font-size: map-get($font-size, 2xl);
-      font-weight: 500;
-      color: $text-color;
-    }
-    
-    // 爬虫历史记录控制
-    .analysis-controls {
-      display: flex;
-      align-items: center;
-      gap: map-get($spacing, lg);
-      
-      // 排序控制
-      .analysis-sort-controls {
-        display: flex;
-        align-items: center;
-        gap: map-get($spacing, sm);
-      }
-      
-      // 选择框
-      .analysis-select {
-        padding: map-get($spacing, sm) map-get($spacing, md);
-        border: 1px solid $border-color;
-        border-radius: $border-radius-md;
-        background-color: $background-color;
-        font-size: map-get($font-size, sm);
-        color: $text-color;
-        
-        &:focus {
-          outline: none;
-          border-color: $primary-color;
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-      }
-      
-      // 排序按钮
-      .analysis-sort-button {
-        padding: map-get($spacing, sm);
-        border: 1px solid $border-color;
-        border-radius: $border-radius-md;
-        background-color: $background-color;
-        font-size: map-get($font-size, sm);
-        cursor: pointer;
-        
-        &:hover {
-          background-color: #f3f4f6;
-        }
-      }
-      
-      // 视图控制
-      .analysis-view-controls {
-        display: flex;
-        gap: map-get($spacing, xs);
-        
-        // 视图按钮
-        .analysis-view-button {
-          padding: map-get($spacing, sm) map-get($spacing, md);
-          border: 1px solid $border-color;
-          border-radius: $border-radius-md;
-          background-color: $background-color;
-          font-size: map-get($font-size, sm);
-          cursor: pointer;
-          
-          &:hover {
-            background-color: #f3f4f6;
-          }
-          
-          &.active {
-            background-color: $primary-color;
-            color: white;
-            border-color: $primary-color;
-          }
-        }
-      }
-      
-      // 清空按钮
-      .analysis-clear-button {
-        @include secondary-button;
-        padding: map-get($spacing, sm) map-get($spacing, md);
-      }
-    }
-  }
-  
-  // 空状态
-  .analysis-empty-state {
-    text-align: center;
-    padding: map-get($spacing, 4xl);
-    
-    .analysis-empty-icon {
-      font-size: 4rem;
-      margin-bottom: map-get($spacing, lg);
-    }
-    
-    .analysis-empty-title {
-      font-size: map-get($font-size, xl);
-      font-weight: 500;
-      margin-bottom: map-get($spacing, sm);
-      color: $text-color;
-    }
-    
-    .analysis-empty-description {
-      font-size: map-get($font-size, md);
-      color: $text-secondary-color;
-    }
-  }
-  
-  // 历史记录容器
-  .analysis-history-container {
-    display: flex;
-    flex-direction: column;
-    gap: map-get($spacing, md);
-    
-    // 网格视图
-    &.grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    }
-  }
-}
+  border: 1px solid $border-color;
 
-// 历史记录项
-.analysis-history-item {
-  background-color: $background-color;
-  padding: map-get($spacing, lg);
-  border-radius: $border-radius-md;
-  box-shadow: $shadow-sm;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    box-shadow: $shadow-md;
-    transform: translateY(-1px);
+  &__search {
+    width: 100%;
+    padding: map-get($spacing, sm) map-get($spacing, md);
+    border: 1px solid $border-color;
+    border-radius: $border-radius-md;
+    font-size: map-get($font-size, sm);
+    background: $background-color;
+    transition: border-color 0.15s;
+    &:focus { outline: none; border-color: $primary-color; box-shadow: 0 0 0 3px rgba($primary-color, 0.1); }
+    &::placeholder { color: #9ca3af; }
   }
-  
-  &.selected {
-    border: 2px solid $primary-color;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-  
-  // 历史记录项头部
-  .analysis-history-item-header {
+
+  &__actions {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: map-get($spacing, md);
-    
-    // 历史记录项信息
-    .analysis-history-item-info {
-      flex: 1;
-      
-      // 历史记录项类型
-      .analysis-history-item-type {
-        font-size: map-get($font-size, sm);
-        font-weight: 500;
-        color: $primary-color;
-        margin-bottom: map-get($spacing, xs);
-      }
-      
-      // 历史记录项URL
-      .analysis-history-item-url {
-        font-size: map-get($font-size, sm);
-        color: $text-secondary-color;
-        word-break: break-all;
-        line-height: 1.4;
-      }
-    }
-    
-    // 历史记录项元数据
-    .analysis-history-item-meta {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: map-get($spacing, sm);
-      
-      // 历史记录项时间
-      .analysis-history-item-time {
-        font-size: map-get($font-size, xs);
-        color: $text-secondary-color;
-      }
-      
-      // 历史记录项删除
-      .analysis-history-item-delete {
-        padding: map-get($spacing, xs);
-        border: none;
-        border-radius: $border-radius-sm;
-        background-color: #fef2f2;
-        color: #ef4444;
-        font-size: map-get($font-size, xs);
-        cursor: pointer;
-        
-        &:hover {
-          background-color: #fee2e2;
-        }
-      }
-    }
+    gap: map-get($spacing, xs);
+    flex-wrap: wrap;
   }
-  
-  // 历史记录项统计
-  .analysis-history-item-stats {
-    display: flex;
-    align-items: center;
-    gap: map-get($spacing, lg);
-    
-    // 历史记录项统计
-    .analysis-history-item-stat {
-      font-size: map-get($font-size, sm);
-      color: $text-secondary-color;
-    }
-    
-    // 历史记录项错误
-    .analysis-history-item-error {
-      font-size: map-get($font-size, sm);
+
+  &__select {
+    padding: 6px 10px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-md;
+    font-size: map-get($font-size, xs);
+    background: $background-color;
+    color: $text-color;
+    cursor: pointer;
+    &:focus { outline: none; border-color: $primary-color; }
+  }
+
+  &__btn {
+    padding: 6px 12px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-md;
+    font-size: map-get($font-size, xs);
+    background: $background-color;
+    color: $text-color;
+    cursor: pointer;
+    transition: all 0.15s;
+    &:hover { background: #f3f4f6; }
+    &--danger {
       color: #ef4444;
-      font-weight: 500;
+      border-color: #fecaca;
+      &:hover { background: #fef2f2; }
     }
   }
 }
 
-// 爬虫历史记录部分
-.analysis-section {
-  background-color: #f9fafb;
-  padding: map-get($spacing, 2xl);
-  border-radius: $border-radius-lg;
-  box-shadow: $shadow-sm;
-  
-  // 爬虫历史记录部分头部
-  .analysis-section-header {
+// ─── 空状态 ──────────────────────────────────────────────────────────────
+
+.empty-state {
+  text-align: center;
+  padding: map-get($spacing, 4xl) map-get($spacing, lg);
+  &__icon { font-size: 3rem; margin-bottom: map-get($spacing, md); }
+  &__title { font-size: map-get($font-size, lg); font-weight: 500; color: $text-color; margin-bottom: map-get($spacing, xs); }
+  &__desc  { font-size: map-get($font-size, sm); color: $text-secondary-color; }
+}
+
+// ─── 历史卡片 ────────────────────────────────────────────────────────────
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: map-get($spacing, sm);
+}
+
+.history-card {
+  background: $background-color;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  padding: map-get($spacing, md);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+
+  &:hover { border-color: darken($border-color, 8%); box-shadow: $shadow-sm; }
+  &--selected { border-color: $primary-color; box-shadow: 0 0 0 3px rgba($primary-color, 0.08); }
+  &--error { border-left: 3px solid #ef4444; }
+
+  &__header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: map-get($spacing, 2xl);
-    padding-bottom: map-get($spacing, sm);
-    border-bottom: 1px solid $border-color;
-    
-    // 爬虫历史记录部分标题
-    .analysis-section-title {
-      font-size: map-get($font-size, 2xl);
-      font-weight: 500;
-      color: $text-color;
-    }
-    
-    // 爬虫历史记录关闭按钮
-    .analysis-close-button {
-      @include secondary-button;
-      padding: map-get($spacing, sm) map-get($spacing, md);
+    margin-bottom: map-get($spacing, xs);
+  }
+  &__type {
+    font-size: map-get($font-size, xs);
+    font-weight: 600;
+    color: $primary-color;
+  }
+  &__status {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: $border-radius-full;
+    &.status-success { background: #ecfdf5; color: #059669; }
+    &.status-failed  { background: #fef2f2; color: #dc2626; }
+  }
+  &__url {
+    font-size: map-get($font-size, sm);
+    color: $text-secondary-color;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: map-get($spacing, sm);
+  }
+  &__metrics {
+    display: flex;
+    gap: map-get($spacing, md);
+    .metric {
+      font-size: map-get($font-size, xs);
+      color: $text-secondary-color;
+      strong { color: $text-color; font-weight: 600; }
     }
   }
-  
-  // 爬虫历史记录详细内容
-  .analysis-detail-content {
+  &__footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: map-get($spacing, sm);
+    padding-top: map-get($spacing, sm);
+    border-top: 1px solid #f3f4f6;
+  }
+  &__time {
+    font-size: 11px;
+    color: #9ca3af;
+  }
+  &__delete {
+    opacity: 0;
+    padding: 4px;
+    border: none;
+    border-radius: $border-radius-sm;
+    background: none;
+    color: #9ca3af;
+    cursor: pointer;
+    transition: all 0.15s;
+    &:hover { color: #ef4444; background: #fef2f2; }
+  }
+  &:hover &__delete { opacity: 1; }
+}
+
+// ─── 详情面板 ────────────────────────────────────────────────────────────
+
+.detail-panel {
+  background: $background-color;
+  border: 1px solid $border-color;
+  border-radius: $border-radius-lg;
+  overflow: hidden;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: map-get($spacing, lg) map-get($spacing, xl);
+    border-bottom: 1px solid $border-color;
+    background: #f9fafb;
+  }
+  &__title {
+    font-size: map-get($font-size, lg);
+    font-weight: 600;
+    color: $text-color;
+  }
+  &__close {
+    padding: map-get($spacing, xs);
+    border: none;
+    border-radius: $border-radius-sm;
+    background: none;
+    color: $text-secondary-color;
+    cursor: pointer;
+    &:hover { color: $text-color; background: #f3f4f6; }
+  }
+}
+
+.detail-summary {
+  padding: map-get($spacing, xl);
+  border-bottom: 1px solid $border-color;
+
+  &__row {
+    margin-bottom: map-get($spacing, md);
+  }
+  &__label {
+    display: block;
+    font-size: map-get($font-size, xs);
+    color: $text-secondary-color;
+    margin-bottom: 2px;
+    font-weight: 500;
+  }
+  &__value {
+    font-size: map-get($font-size, sm);
+    color: $text-color;
+    word-break: break-all;
+  }
+  &__link {
+    color: $primary-color;
+    text-decoration: none;
+    &:hover { text-decoration: underline; }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: map-get($spacing, md);
+  }
+  &__cell {
+    &-label {
+      display: block;
+      font-size: map-get($font-size, xs);
+      color: $text-secondary-color;
+      margin-bottom: 2px;
+    }
+    &-value {
+      font-size: map-get($font-size, md);
+      font-weight: 600;
+      color: $text-color;
+      &.status-success { color: #059669; }
+      &.status-failed  { color: #dc2626; }
+    }
+  }
+
+  &__error {
+    margin-top: map-get($spacing, md);
+    padding: map-get($spacing, md);
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: $border-radius-md;
+    font-size: map-get($font-size, sm);
+    color: #991b1b;
+    line-height: 1.5;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+}
+
+// ─── 数据明细 ────────────────────────────────────────────────────────────
+
+.detail-data {
+  &__toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: map-get($spacing, md) map-get($spacing, xl);
+    border-bottom: 1px solid $border-color;
+    background: #fafbfc;
+  }
+  &__title {
+    font-size: map-get($font-size, sm);
+    font-weight: 600;
+    color: $text-color;
+  }
+  &__search {
+    padding: 5px 12px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-md;
+    font-size: map-get($font-size, xs);
+    width: 200px;
+    &:focus { outline: none; border-color: $primary-color; }
+  }
+  &__list {
+    max-height: 55vh;
+    overflow-y: auto;
+    padding: map-get($spacing, sm);
+  }
+  &__empty {
+    text-align: center;
+    padding: map-get($spacing, 3xl);
+    color: $text-secondary-color;
+    font-size: map-get($font-size, sm);
+  }
+}
+
+.data-row {
+  border: 1px solid $border-color;
+  border-radius: $border-radius-md;
+  margin-bottom: map-get($spacing, sm);
+  overflow: hidden;
+  background: $background-color;
+
+  &__main {
+    display: flex;
+    align-items: flex-start;
+    gap: map-get($spacing, md);
+    padding: map-get($spacing, md);
+  }
+  &__index {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: $border-radius-full;
+    background: #f3f4f6;
+    font-size: 11px;
+    font-weight: 600;
+    color: $text-secondary-color;
+  }
+  &__content { flex: 1; min-width: 0; }
+  &__title {
+    font-size: map-get($font-size, sm);
+    font-weight: 500;
+    color: $text-color;
+    margin-bottom: 2px;
+  }
+  &__url {
+    font-size: map-get($font-size, xs);
+    color: $primary-color;
+    text-decoration: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    &:hover { text-decoration: underline; }
+  }
+  &__meta {
+    font-size: 11px;
+    color: $text-secondary-color;
+    margin-top: 4px;
+  }
+  &__text {
+    font-size: map-get($font-size, xs);
+    color: $text-secondary-color;
+    line-height: 1.5;
+    margin-top: map-get($spacing, sm);
+  }
+  &__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: map-get($spacing, sm);
+  }
+  &__toggle {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border: 1px solid $border-color;
+    border-radius: $border-radius-sm;
+    background: $background-color;
+    font-size: 11px;
+    cursor: pointer;
+    color: $primary-color;
+    &:hover { background: #f9fafb; }
+  }
+  &__children {
+    padding: map-get($spacing, sm) map-get($spacing, md) map-get($spacing, md);
+    padding-left: 52px;
+    background: #fafbfc;
+    border-top: 1px solid $border-color;
     display: flex;
     flex-direction: column;
-    gap: map-get($spacing, 2xl);
-    
-    // 爬虫历史记录详细信息
-    .analysis-detail-info {
-      background-color: $background-color;
-      padding: map-get($spacing, lg);
-      border-radius: $border-radius-md;
-      box-shadow: $shadow-sm;
-      
-      // 爬虫历史记录详细信息项
-      .analysis-detail-info-item {
-        display: flex;
-        align-items: flex-start;
-        gap: map-get($spacing, lg);
-        margin-bottom: map-get($spacing, md);
-        
-        &:last-child {
-          margin-bottom: 0;
-        }
-        
-        // 错误信息
-        &.error {
-          .analysis-detail-info-value {
-            color: #ef4444;
-          }
-        }
-        
-        // 爬虫历史记录详细信息标签
-        .analysis-detail-info-label {
-          flex: 0 0 120px;
-          font-size: map-get($font-size, md);
-          font-weight: 500;
-          color: $text-secondary-color;
-          padding-top: 2px;
-        }
-        
-        // 爬虫历史记录详细信息值
-        .analysis-detail-info-value {
-          flex: 1;
-          font-size: map-get($font-size, md);
-          color: $text-color;
-          word-break: break-all;
-          line-height: 1.4;
-        }
-      }
-    }
-    
-    // 爬虫历史记录详细数据
-    .analysis-detail-data {
-      background-color: $background-color;
-      padding: map-get($spacing, lg);
-      border-radius: $border-radius-md;
-      box-shadow: $shadow-sm;
-      
-      // 爬虫历史记录详细数据标题
-      .analysis-detail-data-title {
-        font-size: map-get($font-size, xl);
-        font-weight: 500;
-        margin-bottom: map-get($spacing, lg);
-        color: $text-color;
-      }
-      
-      // 爬虫历史记录详细数据内容
-      .analysis-detail-data-content {
-        display: flex;
-        flex-direction: column;
-        gap: map-get($spacing, lg);
-      }
-    }
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  &__child-link {
+    font-size: map-get($font-size, xs);
+    color: $primary-color;
+    text-decoration: none;
+    word-break: break-all;
+    &:hover { text-decoration: underline; }
   }
 }
 
-// 链接数据
-.analysis-link-data {
-  display: flex;
-  flex-direction: column;
-  gap: map-get($spacing, lg);
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: $primary-color;
+  border-radius: $border-radius-full;
+  font-size: 11px;
+  font-weight: 500;
 }
 
-// 链接数据项
-.analysis-link-item {
-  padding: map-get($spacing, lg);
+// ─── 图片网格 ────────────────────────────────────────────────────────────
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: map-get($spacing, sm);
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: map-get($spacing, sm);
+}
+
+.image-card {
   border: 1px solid $border-color;
   border-radius: $border-radius-md;
-  background-color: #f9fafb;
-  
-  // 链接标题
-  .analysis-link-title {
-    font-size: map-get($font-size, lg);
-    font-weight: 500;
-    margin-bottom: map-get($spacing, sm);
-    color: $text-color;
-  }
-  
-  // 链接URL
-  .analysis-link-url {
-    font-size: map-get($font-size, sm);
-    color: $primary-color;
-    margin-bottom: map-get($spacing, sm);
-    word-break: break-all;
-  }
-  
-  // 链接元数据
-  .analysis-link-meta {
-    font-size: map-get($font-size, sm);
-    color: $text-secondary-color;
-    margin-bottom: map-get($spacing, sm);
-  }
-  
-  // 子链接
-  .analysis-link-sub-links {
-    margin-top: map-get($spacing, sm);
-    padding-top: map-get($spacing, sm);
-    border-top: 1px solid $border-color;
-    
-    // 子链接项
-    .analysis-link-sub-link {
-      font-size: map-get($font-size, xs);
-      color: $text-secondary-color;
-      margin-bottom: map-get($spacing, xs);
-      word-break: break-all;
-    }
-    
-    // 更多链接
-    .analysis-link-more {
-      font-size: map-get($font-size, xs);
-      color: $text-secondary-color;
-      font-style: italic;
-    }
-    
-    // 可展开链接容器
-    .analysis-link-expandable {
-      margin-top: map-get($spacing, sm);
-      
-      // 展开按钮
-      .analysis-link-expand-button {
-        font-size: map-get($font-size, xs);
-        color: $primary-color;
-        background: none;
-        border: none;
-        padding: 0;
-        cursor: pointer;
-        font-style: italic;
-        
-        &:hover {
-          text-decoration: underline;
-        }
-      }
-      
-      // 收起按钮
-      .analysis-link-collapse-button {
-        font-size: map-get($font-size, xs);
-        color: $text-secondary-color;
-        background: none;
-        border: none;
-        padding: 0;
-        cursor: pointer;
-        margin-top: map-get($spacing, sm);
-        font-style: italic;
-        
-        &:hover {
-          text-decoration: underline;
-        }
-      }
+  overflow: hidden;
+  background: $background-color;
+  transition: box-shadow 0.15s;
+  &:hover { box-shadow: $shadow-md; }
+
+  &__preview {
+    aspect-ratio: 1;
+    background: #f3f4f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
     }
   }
-}
-
-// 内容数据
-.analysis-content-data {
-  display: flex;
-  flex-direction: column;
-  gap: map-get($spacing, lg);
-}
-
-// 内容数据项
-.analysis-content-item {
-  padding: map-get($spacing, lg);
-  border: 1px solid $border-color;
-  border-radius: $border-radius-md;
-  background-color: #f9fafb;
-  
-  // 内容标题
-  .analysis-content-title {
-    font-size: map-get($font-size, lg);
-    font-weight: 500;
-    margin-bottom: map-get($spacing, sm);
-    color: $text-color;
+  &__info {
+    padding: map-get($spacing, sm);
   }
-  
-  // 内容URL
-  .analysis-content-url {
-    font-size: map-get($font-size, sm);
+  &__url {
+    font-size: 11px;
     color: $primary-color;
-    margin-bottom: map-get($spacing, sm);
-    word-break: break-all;
+    text-decoration: none;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    &:hover { text-decoration: underline; }
   }
-  
-  // 内容元数据
-  .analysis-content-meta {
-    font-size: map-get($font-size, sm);
+  &__size, &__alt {
+    font-size: 10px;
     color: $text-secondary-color;
-    margin-bottom: map-get($spacing, sm);
-  }
-  
-  // 内容文本
-  .analysis-content-text {
-    font-size: map-get($font-size, sm);
-    color: $text-color;
-    line-height: 1.5;
-    margin-bottom: map-get($spacing, sm);
-    white-space: pre-wrap;
-  }
-  
-  // 内容关键词
-  .analysis-content-keywords {
-    font-size: map-get($font-size, sm);
-    color: $text-secondary-color;
-    margin-top: map-get($spacing, sm);
-    padding-top: map-get($spacing, sm);
-    border-top: 1px solid $border-color;
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
-// 图片数据
-.analysis-image-data {
-  display: flex;
-  flex-direction: column;
-  gap: map-get($spacing, lg);
+// ─── 详情占位 ────────────────────────────────────────────────────────────
+
+.detail-placeholder {
+  text-align: center;
+  color: #9ca3af;
+  font-size: map-get($font-size, sm);
+  padding: map-get($spacing, 4xl);
+  &__icon { margin-bottom: map-get($spacing, md); }
 }
 
-// 图片数据项
-.analysis-image-item {
-  padding: map-get($spacing, lg);
-  border: 1px solid $border-color;
-  border-radius: $border-radius-md;
-  background-color: #f9fafb;
-  
-  // 图片URL
-  .analysis-image-url {
-    font-size: map-get($font-size, sm);
-    color: $primary-color;
-    margin-bottom: map-get($spacing, sm);
-    word-break: break-all;
-  }
-  
-  // 图片元数据
-  .analysis-image-meta {
-    font-size: map-get($font-size, sm);
-    color: $text-secondary-color;
-    margin-bottom: map-get($spacing, sm);
-  }
-  
-  // 图片描述
-  .analysis-image-alt {
-    font-size: map-get($font-size, sm);
-    color: $text-secondary-color;
-    margin-top: map-get($spacing, sm);
-    padding-top: map-get($spacing, sm);
-    border-top: 1px solid $border-color;
-  }
-}
+// ─── 响应式 ──────────────────────────────────────────────────────────────
 
-// 响应式设计
 @include respond-to('lg') {
-  .analysis-page {
-    max-width: 1000px;
+  .analysis-layout {
+    grid-template-columns: 360px 1fr;
   }
-  
-  .analysis-history-container.grid {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  .stats-bar {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @include respond-to('md') {
-  .analysis-page {
-    padding: map-get($spacing, xl) map-get($spacing, sm);
-  }
-  
-  .analysis-overview {
-    padding: map-get($spacing, lg);
-    
-    .analysis-overview-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: map-get($spacing, lg);
-    }
-    
-    .analysis-controls {
-      flex-wrap: wrap;
-      justify-content: flex-start;
-    }
-  }
-  
-  .analysis-section {
-    padding: map-get($spacing, lg);
-    
-    .analysis-section-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: map-get($spacing, lg);
-    }
-  }
-  
-  .analysis-detail-info-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: map-get($spacing, sm);
-    
-    .analysis-detail-info-label {
-      flex: 1;
-    }
-    
-    .analysis-detail-info-value {
-      flex: 1;
-    }
-  }
-  
-  .analysis-history-container.grid {
+  .analysis-layout {
     grid-template-columns: 1fr;
   }
-  
-  .analysis-history-item-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: map-get($spacing, md);
-    
-    .analysis-history-item-meta {
-      align-items: flex-start;
-      width: 100%;
-      justify-content: space-between;
-      flex-direction: row;
+  .analysis-detail-panel {
+    position: static;
+    &:not(.analysis-detail-panel--open) {
+      display: none;
     }
   }
-  
-  .analysis-history-item-stats {
-    flex-wrap: wrap;
-    gap: map-get($spacing, md);
+  .stats-bar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .toolbar__actions {
+    width: 100%;
+  }
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
   }
 }
 
 @include respond-to('sm') {
-  .analysis-controls {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: map-get($spacing, md);
+  .analysis-page {
+    padding: map-get($spacing, xl) map-get($spacing, sm);
   }
-  
-  .analysis-sort-controls {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: map-get($spacing, sm);
-    width: 100%;
-  }
-  
-  .analysis-select {
-    width: 100%;
-  }
-  
-  .analysis-view-controls {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .analysis-view-button {
-    flex: 1;
-    text-align: center;
+  .stats-bar {
+    grid-template-columns: 1fr 1fr;
+    .stat-card:last-child {
+      grid-column: 1 / -1;
+    }
   }
 }
-

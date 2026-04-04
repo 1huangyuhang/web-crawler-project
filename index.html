@@ -5,6 +5,11 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>my-website</title>
+    <!-- 首屏兜底：在 JS/CSS 未执行前避免文档高度为 0 -->
+    <style>
+      html, body { min-height: 100vh; min-height: 100dvh; }
+      #root { min-height: 100vh; min-height: 100dvh; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

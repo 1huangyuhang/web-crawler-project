@@ -10,10 +10,12 @@
   box-sizing: border-box;
 }
 
-// 全局样式
+// 全局样式（保证有视口高度，避免空文档时 html/body 在部分工具里显示为 height:0）
 html {
   font-size: 16px;
   line-height: 1.5;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 body {
@@ -23,6 +25,20 @@ body {
   background-color: $background-color;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+// 路由懒加载占位，避免白屏时无任何反馈
+.page-suspense-fallback {
+  padding: map-get($spacing, xl);
+  text-align: center;
+  color: $text-secondary-color;
 }
 
 // 标题样式

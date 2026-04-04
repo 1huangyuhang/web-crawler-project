@@ -1,71 +1,62 @@
 /**
- * 爬虫服务
- * 用于处理不同类型的爬虫请求
+ * 爬虫 HTTP 调用：统一走 services/api（Axios + 与 Vite 同源代理），禁止再写死 localhost。
  */
 
-/**
- * 真实爬虫服务
- * 用于处理不同类型的爬虫请求，调用后端 API
- */
-export class CrawlerService {
-  /**
-   * API 基础 URL
-   */
-  private static readonly API_BASE_URL = 'http://localhost:3001/api';
-  
-  /**
-   * 开始爬取
-   * @param crawlerType 爬虫类型
-   * @param url 目标URL
-   * @param depth 爬取深度
-   * @returns 爬取结果
-   */
-  static async startCrawling(crawlerType: string, url: string, depth: number): Promise<any> {
-    try {
-      // 发送请求到后端 API
-      const response = await fetch(`${this.API_BASE_URL}/crawl`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: crawlerType,
-          url,
-          depth
-        })
-      });
-      
-      // 检查响应状态
-      if (!response.ok) {
-        throw new Error(`API 请求失败: ${response.status} ${response.statusText}`);
-      }
-      
-      // 解析响应数据
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('爬取失败:', error);
-      throw new Error(`爬取失败: ${error instanceof Error ? error.message : '未知错误'}`);
+import axios from 'axios'
+import { crawlerApi } from '../services/api'
+
+function normalizeCrawlResponse(
+  raw: Record<string, unknown>,
+  fallback: { type: string; url: string; depth: number }
+) {
+  if (raw?.success === true && raw?.status === 'queued') {
+    return {
+      ...raw,
+      id: raw.id ?? raw.jobId,
+      status: 'pending',
+      url: (raw.url as string) ?? fallback.url,
+      type: (raw.type as string) ?? fallback.type,
+      depth: (raw.depth as number) ?? fallback.depth
     }
   }
-  
-  /**
-   * 检查后端服务是否可用
-   * @returns 服务是否可用
-   */
+  return {
+    ...raw,
+    id: raw.id ?? raw.jobId
+  }
+}
+
+export class CrawlerService {
+  static async startCrawling(crawlerType: string, url: string, depth: number): Promise<Record<string, unknown>> {
+    try {
+      const res = await crawlerApi.startCrawl({ type: crawlerType, url, depth })
+      return normalizeCrawlResponse(res.data as Record<string, unknown>, {
+        type: crawlerType,
+        url,
+        depth
+      })
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const data = err.response?.data as Record<string, unknown> | undefined
+        const msg =
+          (data?.error as string) ||
+          (data?.message as string) ||
+          err.message ||
+          '网络或服务器错误'
+        throw new Error(`爬取失败: ${msg}`)
+      }
+      throw new Error(
+        `爬取失败: ${err instanceof Error ? err.message : '未知错误'}`
+      )
+    }
+  }
+
   static async checkServiceHealth(): Promise<boolean> {
     try {
-      console.log('开始检查服务健康状态:', `${this.API_BASE_URL}/health`);
-      const response = await fetch(`${this.API_BASE_URL}/health`);
-      console.log('服务健康检查响应:', {
-        status: response.status,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers)
-      });
-      return response.ok;
-    } catch (error) {
-      console.error('检查服务健康状态失败:', error);
-      return false;
+      const res = await crawlerApi.checkHealth()
+      const data = res.data as { success?: boolean } | undefined
+      return res.status === 200 && data?.success !== false
+    } catch {
+      return false
     }
   }
 }

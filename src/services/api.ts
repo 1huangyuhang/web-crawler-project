@@ -28,10 +28,11 @@
  */
 
 import axios from 'axios'
+import { getApiBaseUrl } from '../config/api'
 import { logger } from './logger'
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: getApiBaseUrl(),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -76,8 +77,8 @@ export const crawlerApi = {
   startCrawl: (data: { type: string; url: string; depth: number }) =>
     apiClient.post('/api/crawl', data),
 
-  checkHealth: () =>
-    apiClient.get('/api/health'),
+  /** 短超时，避免健康检查占用默认 30s，拖成「长时间不可用」 */
+  checkHealth: () => apiClient.get('/api/health', { timeout: 5000 }),
 
   getHistory: (limit: number = 50) =>
     apiClient.get(`/api/history?limit=${limit}`),

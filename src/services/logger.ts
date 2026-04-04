@@ -363,6 +363,9 @@ class LoggerService {
    * 设置全局错误处理
    */
   private setupErrorHandling() {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+      return
+    }
     // 捕获未处理的Promise拒绝
     window.addEventListener('unhandledrejection', (event) => {
       const error = event.reason

@@ -1,4 +1,5 @@
 import MobileNavbar from './MobileNavbar/MobileNavbar'
+import { useCrawler } from '../../js/useCrawler'
 
 /**
  * 导航链接接口
@@ -14,6 +15,8 @@ interface NavLink {
  * 包含桌面端导航菜单，移动端导航通过 MobileNavbar 组件实现
  */
 const SimpleNavbar = () => {
+  const [{ crawlerStatus, crawlProgress }] = useCrawler()
+
   // 导航链接数据
   const navLinks: NavLink[] = [
     { id: 'home', label: '爬虫首页', href: '#home' },
@@ -36,6 +39,12 @@ const SimpleNavbar = () => {
             <span className="navbar-logo-text">我的网页</span>
           </a>
         </div>
+
+        {crawlerStatus === 'running' && (
+          <span className="navbar-crawl-badge" title="切换页面不会中断当前爬取任务">
+            爬取中 {crawlProgress}%
+          </span>
+        )}
 
         {/* 桌面端导航 */}
         <nav className="navbar-desktop">
