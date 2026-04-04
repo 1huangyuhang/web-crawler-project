@@ -10,6 +10,7 @@
     "dev:server": "npm run dev --prefix server",
     "dev:fastapi": "bash backend/scripts/run_dev.sh",
     "build": "tsc -b && vite build",
+    "start:prod": "NODE_ENV=production npm run start --prefix server",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",

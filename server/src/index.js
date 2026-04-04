@@ -1,7 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const path = require('path');
+const fs = require('fs');
 const { URL } = require('url');
+const { createProxyMiddleware } = require('http-proxy-middleware');
 
 // 导入数据库模块
 const db = require('./db');
@@ -19,6 +22,9 @@ const { authMiddleware } = require('./middleware/auth');
 const authRoutes = require('./routes/auth');
 const { runCrawler, normalizeCrawlRuntime } = require('./services/crawlRunner');
 const { listenFromBasePort } = require('./devListen');
+const { listenProduction } = require('./prodListen');
+
+const isProduction = process.env.NODE_ENV === 'production';
 
 function validateUrl(url) {
   try {
@@ -54,6 +60,18 @@ const baseListenPort = parseInt(String(process.env.PORT || '3001'), 10) || 3001;
 // 配置中间件
 app.use(cors());
 app.use(bodyParser.json());
+
+/** 生产：将 /api/v1 转发到 FastAPI（与开发时 Vite 代理一致），便于单端口对外 */
+if (isProduction) {
+  const fastApiTarget = process.env.FASTAPI_URL || 'http://127.0.0.1:8000';
+  app.use(
+    '/api/v1',
+    createProxyMiddleware({
+      target: fastApiTarget,
+      changeOrigin: true
+    })
+  );
+}
 
 /**
  * 生成唯一的爬取 ID
@@ -402,6 +420,22 @@ app.delete('/api/history', async (req, res) => {
   }
 });
 
+/** 生产：托管 Vite 构建产物，手机/外网访问同一端口即可打开站点 */
+if (isProduction && process.env.SERVE_STATIC !== '0') {
+  const distPath = path.resolve(__dirname, '../../dist');
+  const indexHtml = path.join(distPath, 'index.html');
+  if (fs.existsSync(indexHtml)) {
+    app.use(express.static(distPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path === '/ws') return next();
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      res.sendFile(indexHtml);
+    });
+  } else {
+    console.warn('[生产] 未找到 dist/index.html，请先在项目根目录执行 npm run build（或设置 SERVE_STATIC=0 仅作 API）');
+  }
+}
+
 // 404处理
 app.use(notFound);
 
@@ -417,16 +451,23 @@ async function startServer() {
       console.warn('数据库连接失败，将使用本地存储作为备选方案');
     }
 
-    const { server, port } = await listenFromBasePort(app, baseListenPort);
-
-    console.log(`后端服务运行在 http://localhost:${port}`);
+    let server;
+    let port;
+    if (isProduction) {
+      const host = process.env.LISTEN_HOST || '0.0.0.0';
+      ({ server, port } = await listenProduction(app, baseListenPort, host));
+      console.log(`生产服务监听 http://${host}:${port}（外网/手机请用本机 IP 或域名访问该端口）`);
+    } else {
+      ({ server, port } = await listenFromBasePort(app, baseListenPort));
+      console.log(`后端服务运行在 http://localhost:${port}`);
+    }
     console.log('可用的 API 端点:');
     console.log('POST /api/crawl - 执行爬虫');
     console.log('GET /api/history - 获取爬取历史记录');
     console.log('DELETE /api/history/:id - 删除指定爬取历史记录');
     console.log('DELETE /api/history - 清空所有爬取历史记录');
     console.log('GET /api/health - 健康检查');
-    console.log(`WebSocket: ws://localhost:${port}/ws - 实时进度推送`);
+    console.log(`WebSocket: ws://<host>:${port}/ws - 实时进度推送（HTTPS 站点用 wss）`);
 
     // 初始化 WebSocket 服务并注入队列（打破循环依赖）
     const wsService = new WebSocketService(server);

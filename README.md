@@ -2,7 +2,7 @@
 
 面向开发与实验的网页爬虫控制台：在浏览器里配置任务、查看实时进度与历史数据，可选接入 AI 自然语言查库。**默认开发路径**为「React 前端 + Node 网关（队列 / WebSocket）+ Python 爬虫脚本」；`backend/` 下的 FastAPI 提供扩展能力（如 `/api/v1/ai`），与 Node 并行使用。
 
-**延伸阅读**：[启动说明（前后端）](docs/STARTUP.md) · [全项目架构蓝图](docs/PROJECT_BLUEPRINT.md) · [架构深度说明](ARCHITECTURE_DOCUMENT.md) · [Node HTTP API 明细](API_DOCUMENTATION.md) · [文档索引](docs/README.md)
+**延伸阅读**：[启动说明（前后端）](docs/STARTUP.md) · [生产部署与远程访问](docs/DEPLOYMENT.md) · [全项目架构蓝图](docs/PROJECT_BLUEPRINT.md) · [架构深度说明](ARCHITECTURE_DOCUMENT.md) · [Node HTTP API 明细](API_DOCUMENTATION.md) · [文档索引](docs/README.md)
 
 ---
 
@@ -147,14 +147,18 @@ bash backend/scripts/run_dev.sh
 
 OpenAPI：**http://127.0.0.1:8000/docs**
 
-### 3. 构建生产前端
+### 3. 构建与生产运行（手机 / 局域网访问）
 
 ```bash
 npm run build
-npm run preview
+npm run start:prod
 ```
 
-生产环境请设置 `VITE_API_BASE_URL` 指向真实 API 源（不要带末尾 `/api`，见 [src/config/api.ts](src/config/api.ts)）。
+默认 **`LISTEN_HOST=0.0.0.0`**、**`PORT=3001`**：同一 Wi‑Fi 下用手机浏览器打开 **`http://<电脑局域网IP>:3001`** 即可。Node 会托管 `dist/`、转发 **`/api/v1`** 到本机 FastAPI（**`FASTAPI_URL`**，默认 `http://127.0.0.1:8000`）。完整步骤、防火墙与 HTTPS 见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**。
+
+仅本地预览构建结果（无网关）：`npm run preview`。
+
+前后端分域部署时，构建前配置 `VITE_API_BASE_URL`（不要带末尾 `/api`，见 [src/config/api.ts](src/config/api.ts)），示例见根目录 `.env.production.example`。
 
 ---
 
