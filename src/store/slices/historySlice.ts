@@ -88,9 +88,11 @@ export const loadHistory = createAsyncThunk(
         status: filters?.status,
         favorite: filters?.favorite
       })
+      const rawTotal = response.headers['x-total-count']
+      const total = typeof rawTotal === 'string' ? parseInt(rawTotal, 10) : Number(rawTotal)
       return {
         data: response.data,
-        total: response.headers['x-total-count'] || 0
+        total: Number.isFinite(total) ? total : 0
       }
     } catch (error) {
       return rejectWithValue(error instanceof Error ? error.message : '加载历史记录失败')

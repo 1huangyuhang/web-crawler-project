@@ -50,7 +50,7 @@ interface CrawlerState {
   serviceStatus: 'checking' | 'available' | 'unavailable'
 }
 
-const initialState: CrawlerState = {
+export const initialState: CrawlerState = {
   config: {
     type: 'link',
     url: safeGetItem('crawlerTargetUrl', '') || '',
@@ -65,7 +65,7 @@ const initialState: CrawlerState = {
 
 export const startCrawling = createAsyncThunk(
   'crawler/startCrawling',
-  async (config: CrawlerConfig, { dispatch }) => {
+  async (config: CrawlerConfig) => {
     try {
       const response = await crawlerApi.startCrawl(config)
       return response.data

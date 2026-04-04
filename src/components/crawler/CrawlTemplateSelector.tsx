@@ -248,8 +248,9 @@ const CrawlTemplateSelector: React.FC<CrawlTemplateSelectorProps> = ({
           <h4 className="panel-title">自定义配置</h4>
           <div className="config-form">
             <div className="form-group">
-              <label className="form-label">请求延迟 (ms):</label>
+              <label className="form-label" htmlFor="crawl-template-delay">请求延迟 (ms):</label>
               <input
+                id="crawl-template-delay"
                 type="number"
                 min="100"
                 max="10000"
@@ -260,8 +261,9 @@ const CrawlTemplateSelector: React.FC<CrawlTemplateSelectorProps> = ({
               />
             </div>
             <div className="form-group">
-              <label className="form-label">超时时间 (ms):</label>
+              <label className="form-label" htmlFor="crawl-template-timeout">超时时间 (ms):</label>
               <input
+                id="crawl-template-timeout"
                 type="number"
                 min="5000"
                 max="120000"
@@ -272,8 +274,9 @@ const CrawlTemplateSelector: React.FC<CrawlTemplateSelectorProps> = ({
               />
             </div>
             <div className="form-group">
-              <label className="form-label">重试次数:</label>
+              <label className="form-label" htmlFor="crawl-template-retry">重试次数:</label>
               <input
+                id="crawl-template-retry"
                 type="number"
                 min="0"
                 max="10"
@@ -283,8 +286,9 @@ const CrawlTemplateSelector: React.FC<CrawlTemplateSelectorProps> = ({
               />
             </div>
             <div className="form-group">
-              <label className="form-label">User Agent:</label>
+              <label className="form-label" htmlFor="crawl-template-ua">User Agent:</label>
               <input
+                id="crawl-template-ua"
                 type="text"
                 value={customConfig.userAgent || ''}
                 onChange={(e) => handleConfigChange('userAgent', e.target.value)}

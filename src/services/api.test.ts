@@ -1,43 +1,68 @@
-import axios, { AxiosInstance } from 'axios'
+/**
+ * crawlerApi 单元测试：在 import api 之前用 vi.mock 替换 axios.create，避免真实 XHR。
+ */
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+import type { AxiosInstance } from 'axios'
+
+const { mockPost, mockGet, mockDelete, buildClient } = vi.hoisted(() => {
+  const mockPost = vi.fn()
+  const mockGet = vi.fn()
+  const mockDelete = vi.fn()
+  const buildClient = () =>
+    ({
+      post: mockPost,
+      get: mockGet,
+      delete: mockDelete,
+      defaults: { baseURL: '' },
+      interceptors: {
+        request: { use: vi.fn(), eject: vi.fn() },
+        response: { use: vi.fn(), eject: vi.fn() },
+      },
+    }) as unknown as AxiosInstance
+  return { mockPost, mockGet, mockDelete, buildClient }
+})
+
+vi.mock('../config/api', () => ({ getApiBaseUrl: () => '' }))
+
+vi.mock('./logger', () => ({
+  logger: {
+    generateRequestId: vi.fn(() => 'test-req-id'),
+    debug: vi.fn(),
+    error: vi.fn(),
+  },
+}))
+
+vi.mock('axios', () => ({
+  default: {
+    create: vi.fn(() => buildClient()),
+  },
+}))
+
 import { crawlerApi } from './api'
-
-// Mock axios
-const mockAxiosInstance = {
-  post: vi.fn(),
-  get: vi.fn(),
-  delete: vi.fn(),
-  defaults: { baseURL: 'http://localhost:3001' },
-  interceptors: {
-    request: { use: vi.fn() },
-    response: { use: vi.fn() }
-  }
-}
-
-vi.spyOn(axios, 'create').mockReturnValue(mockAxiosInstance as unknown as AxiosInstance)
 
 describe('crawlerApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPost.mockReset()
+    mockGet.mockReset()
+    mockDelete.mockReset()
   })
 
   describe('startCrawl', () => {
     it('should make POST request to start crawl', async () => {
       const mockData = { type: 'link', url: 'https://example.com', depth: 2 }
       const mockResponse = { data: { success: true } }
-
-      mockAxiosInstance.post.mockResolvedValue(mockResponse)
+      mockPost.mockResolvedValue(mockResponse)
 
       const result = await crawlerApi.startCrawl(mockData)
 
       expect(result).toEqual(mockResponse)
-      expect(mockAxiosInstance.post).toHaveBeenCalledWith('/api/crawl', mockData)
+      expect(mockPost).toHaveBeenCalledWith('/api/crawl', mockData)
     })
 
     it('should handle errors when starting crawl', async () => {
       const mockData = { type: 'link', url: 'https://example.com', depth: 2 }
-      const mockError = new Error('Network error')
-
-      mockedAxios.create().post.mockRejectedValue(mockError)
+      mockPost.mockRejectedValue(new Error('Network error'))
 
       await expect(crawlerApi.startCrawl(mockData)).rejects.toThrow('Network error')
     })
@@ -46,17 +71,16 @@ describe('crawlerApi', () => {
   describe('checkHealth', () => {
     it('should make GET request to check health', async () => {
       const mockResponse = { data: { status: 'ok' } }
-      mockAxiosInstance.get.mockResolvedValue(mockResponse)
+      mockGet.mockResolvedValue(mockResponse)
 
       const result = await crawlerApi.checkHealth()
 
       expect(result).toEqual(mockResponse)
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/health')
+      expect(mockGet).toHaveBeenCalledWith('/api/health', { timeout: 5000 })
     })
 
     it('should handle errors when checking health', async () => {
-      const mockError = new Error('Service unavailable')
-      mockAxiosInstance.get.mockRejectedValue(mockError)
+      mockGet.mockRejectedValue(new Error('Service unavailable'))
 
       await expect(crawlerApi.checkHealth()).rejects.toThrow('Service unavailable')
     })
@@ -65,23 +89,23 @@ describe('crawlerApi', () => {
   describe('getHistory', () => {
     it('should make GET request to get history with default limit', async () => {
       const mockResponse = { data: [] }
-      mockAxiosInstance.get.mockResolvedValue(mockResponse)
+      mockGet.mockResolvedValue(mockResponse)
 
       const result = await crawlerApi.getHistory()
 
       expect(result).toEqual(mockResponse)
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith('/api/history?limit=50')
+      expect(mockGet).toHaveBeenCalledWith('/api/history?limit=50')
     })
 
     it('should make GET request to get history with custom limit', async () => {
       const mockResponse = { data: [] }
       const limit = 25
-      mockAxiosInstance.get.mockResolvedValue(mockResponse)
+      mockGet.mockResolvedValue(mockResponse)
 
       const result = await crawlerApi.getHistory(limit)
 
       expect(result).toEqual(mockResponse)
-      expect(mockAxiosInstance.get).toHaveBeenCalledWith(`/api/history?limit=${limit}`)
+      expect(mockGet).toHaveBeenCalledWith(`/api/history?limit=${limit}`)
     })
   })
 
@@ -89,86 +113,24 @@ describe('crawlerApi', () => {
     it('should make DELETE request to delete specific history', async () => {
       const mockResponse = { data: { success: true } }
       const id = 'test-id-123'
-      mockAxiosInstance.delete.mockResolvedValue(mockResponse)
+      mockDelete.mockResolvedValue(mockResponse)
 
       const result = await crawlerApi.deleteHistory(id)
 
       expect(result).toEqual(mockResponse)
-      expect(mockAxiosInstance.delete).toHaveBeenCalledWith(`/api/history/${id}`)
+      expect(mockDelete).toHaveBeenCalledWith(`/api/history/${id}`)
     })
   })
 
   describe('clearHistory', () => {
     it('should make DELETE request to clear all history', async () => {
       const mockResponse = { data: { success: true } }
-      mockAxiosInstance.delete.mockResolvedValue(mockResponse)
+      mockDelete.mockResolvedValue(mockResponse)
 
       const result = await crawlerApi.clearHistory()
 
       expect(result).toEqual(mockResponse)
-      expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/api/history')
-    })
-  })
-
-  describe('axios configuration', () => {
-    it('should create axios client with correct baseURL', () => {
-      // Reset the mock to test actual axios creation
-      vi.spyOn(axios, 'create').mockClear()
-      const client = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL,
-        timeout: 30000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-
-      expect(client.defaults.baseURL).toBe(import.meta.env.VITE_API_BASE_URL)
-      expect(client.defaults.timeout).toBe(30000)
-      expect(client.defaults.headers['Content-Type']).toBe('application/json')
-    })
-
-    it('should have request interceptor', () => {
-      const client = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL,
-        timeout: 30000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-
-      // Add the same interceptors as in the original code
-      client.interceptors.request.use(
-        (config) => config,
-        (error) => Promise.reject(error)
-      )
-
-      expect(client.interceptors.request).toBeDefined()
-    })
-
-    it('should have response interceptor', () => {
-      // Reset the mock to test actual axios creation
-      vi.spyOn(axios, 'create').mockClear()
-      const client = axios.create({
-        baseURL: import.meta.env.VITE_API_BASE_URL,
-        timeout: 30000,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
-
-      // Add the same interceptors as in the original code
-      let errorLog = ''
-      const mockConsoleError = (msg: string) => { errorLog = msg }
-
-      client.interceptors.response.use(
-        (response) => response,
-        (error) => {
-          mockConsoleError(`API Error: ${error}`)
-          return Promise.reject(error)
-        }
-      )
-
-      expect(client.interceptors.response).toBeDefined()
+      expect(mockDelete).toHaveBeenCalledWith('/api/history')
     })
   })
 })

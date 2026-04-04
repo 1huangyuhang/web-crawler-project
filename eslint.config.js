@@ -20,4 +20,8 @@ export default defineConfig([globalIgnores(['dist']), {
     ecmaVersion: 2020,
     globals: globals.browser,
   },
-}, ...storybook.configs["flat/recommended"]])
+}, ...storybook.configs["flat/recommended"],
+{
+  files: ['src/types/**/*.ts', '**/*.{test,spec}.{ts,tsx}', 'src/test/**/*.ts'],
+  rules: { '@typescript-eslint/no-explicit-any': 'off' },
+}])

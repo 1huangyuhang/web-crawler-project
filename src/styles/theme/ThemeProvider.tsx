@@ -3,7 +3,8 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ThemeProvider as StyledThemeProvider } from 'styled-components';
-import { theme, Theme } from '../tokens/theme';
+import { theme } from '../tokens/theme';
+import type { Theme } from '../tokens/theme';
 
 // 定义上下文类型
 interface ThemeContextType {
@@ -94,12 +95,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     setIsDarkMode(isDark);
   };
 
-  // 创建主题对象
-  const currentTheme: Theme = {
+  const currentTheme = {
     ...theme,
     colors: {
       ...theme.colors,
-      // 深色模式颜色覆盖
       ...(isDarkMode && {
         background: {
           primary: '#111827',
@@ -119,7 +118,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
         },
       }),
     },
-  };
+  } as Theme;
 
   return (
     <ThemeContext.Provider value={{ isDarkMode, toggleTheme, setTheme }}>

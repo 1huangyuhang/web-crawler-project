@@ -27,7 +27,7 @@ export interface LoggerConfig {
 class LoggerService {
   private config: Required<LoggerConfig>
   private logQueue: LogEntry[] = []
-  private flushTimer: NodeJS.Timeout | null = null
+  private flushTimer: ReturnType<typeof setInterval> | null = null
   private requestIdCounter = 0
 
   constructor(config: LoggerConfig = {}) {
@@ -370,7 +370,7 @@ class LoggerService {
     window.addEventListener('unhandledrejection', (event) => {
       const error = event.reason
       this.error('未处理的Promise拒绝', error, {
-        promise: event.promise ? 'Promise对象' : undefined
+        promise: 'rejection',
       }, 'Global')
     })
 

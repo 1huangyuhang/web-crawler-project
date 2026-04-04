@@ -17,7 +17,7 @@ interface UrlSuggestion {
 interface SmartUrlInputProps {
   value: string;
   onChange: (url: string) => void;
-  onEnter?: () => void;
+  onEnter?: (url?: string) => void;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
@@ -89,10 +89,9 @@ const SmartUrlInput: React.FC<SmartUrlInputProps> = ({
   };
 
   
-  // 检测URL可达性（模拟）
-  const checkUrlReachability = async (): Promise<boolean> => {
-    // 这里可以集成实际的检测逻辑
-    // 现在使用模拟检测
+  // 检测URL可达性（模拟）；预留 url 供后续真实请求
+  const checkUrlReachability = async (_url: string): Promise<boolean> => {
+    void _url
     return new Promise((resolve) => {
       setTimeout(() => {
         // 模拟90%的成功率

@@ -17,6 +17,7 @@ describe('CrawlTemplateSelector', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('alert', vi.fn())
   })
 
   it('should render all templates', () => {
