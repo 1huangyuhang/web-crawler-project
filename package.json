@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n server,client -c cyan,magenta \"npm run dev:server\" \"npm run dev:vite\"",
+    "dev": "concurrently -k -n server,client -c cyan,magenta \"npm run dev:server\" \"wait-on -t 120000 .dev-backend-port && npm run dev:vite\"",
     "dev:vite": "vite",
     "dev:server": "npm run dev --prefix server",
     "build": "tsc -b && vite build",

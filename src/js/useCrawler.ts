@@ -13,6 +13,7 @@ import {
   type ReactNode
 } from 'react';
 import { CrawlerService } from './CrawlerService';
+import { crawlerApi } from '../services/api';
 import { websocketService } from '../services/websocket';
 import { safeGetItem, safeSetItem } from '../utils/safeStorage';
 import { useBackendHealth } from '../hooks/useBackendHealth';
@@ -125,6 +126,15 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     }
   };
 
+  /** 队列任务：轮询 GET /api/history 兜底收口（WS 丢消息时） */
+  const historyPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const clearHistoryPoll = () => {
+    if (historyPollTimerRef.current) {
+      clearInterval(historyPollTimerRef.current);
+      historyPollTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     safeSetItem('crawlerType', crawlerType);
   }, [crawlerType]);
@@ -163,6 +173,11 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
       const updatedHistory = [historyItem, ...existingHistory].slice(0, 50);
 
       safeSetItem('crawlHistory', JSON.stringify(updatedHistory));
+      try {
+        window.dispatchEvent(new CustomEvent('crawlHistoryUpdated'));
+      } catch {
+        /* ignore */
+      }
       console.log('爬取历史记录已保存');
     } catch (error) {
       console.error('保存爬取历史记录失败:', error);
@@ -192,6 +207,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     const payload = data.data;
 
     const finishAndUnsub = () => {
+      clearHistoryPoll();
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
         unsubscribeRef.current = null;
@@ -213,6 +229,25 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
       if (stats.result && typeof stats.result === 'object') {
         const r = stats.result as Record<string, unknown>;
         const merged = { ...r, id: crawlId };
+        const hasErr = r.error != null && String(r.error).trim() !== '';
+        if (hasErr) {
+          setCrawlerStatus('error');
+          setCrawlProgress(0);
+          const meta = activeRunMetaRef.current;
+          const errResult = {
+            id: crawlId,
+            url: meta?.url,
+            type: meta?.type,
+            depth: meta?.depth,
+            items: (r.items as number) ?? 0,
+            time: (r.time as number) ?? 0,
+            error: String(r.error)
+          };
+          setCrawlerResult(errResult);
+          finishAndUnsub();
+          saveCrawlHistoryRef.current(errResult);
+          return;
+        }
         setCrawlerResult(merged);
         setCrawlerStatus('completed');
         setCrawlProgress(100);
@@ -241,11 +276,45 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
     }
 
     if (type === 'crawl:completed' && payload && typeof payload === 'object') {
-      const inner = (payload as { result?: unknown }).result ?? payload;
+      const p = payload as Record<string, unknown>;
+      let inner: unknown = p.result ?? payload;
+      if (
+        inner &&
+        typeof inner === 'object' &&
+        !Array.isArray(inner) &&
+        'result' in (inner as object) &&
+        (inner as { result?: unknown }).result != null &&
+        typeof (inner as { result: unknown }).result === 'object'
+      ) {
+        inner = (inner as { result: Record<string, unknown> }).result;
+      }
       const merged =
         typeof inner === 'object' && inner !== null
           ? { ...(inner as Record<string, unknown>), id: crawlId }
           : { id: crawlId, raw: inner };
+      const errVal =
+        typeof inner === 'object' && inner !== null
+          ? (inner as Record<string, unknown>).error
+          : undefined;
+      const hasErr = errVal != null && String(errVal).trim() !== '';
+      if (hasErr) {
+        setCrawlerStatus('error');
+        setCrawlProgress(0);
+        const meta = activeRunMetaRef.current;
+        const errResult = {
+          id: crawlId,
+          url: (merged as { url?: string }).url ?? meta?.url,
+          type: (merged as { type?: string }).type ?? meta?.type,
+          depth: (merged as { depth?: number }).depth ?? meta?.depth,
+          items: (merged as { items?: number }).items ?? 0,
+          time: (merged as { time?: number }).time ?? 0,
+          error: String(errVal)
+        };
+        setCrawlerResult(errResult);
+        finishAndUnsub();
+        saveCrawlHistoryRef.current(errResult);
+        return;
+      }
       setCrawlerResult(merged);
       setCrawlerStatus('completed');
       setCrawlProgress(100);
@@ -284,11 +353,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
       if (crawlerStatusRef.current !== 'running' || !activeCrawlIdRef.current) return;
       const crawlId = activeCrawlIdRef.current;
       void (async () => {
-        try {
-          await websocketService.ensureAuthenticated();
-        } catch {
-          /* 仍尝试订阅，避免偶发竞态下完全失联 */
-        }
+        await websocketService.ensureAuthenticatedWithRecovery().catch(() => {});
         if (crawlerStatusRef.current !== 'running' || activeCrawlIdRef.current !== crawlId) return;
         if (unsubscribeRef.current) {
           unsubscribeRef.current();
@@ -316,6 +381,7 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
   };
 
   const cleanupWs = () => {
+    clearHistoryPoll();
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -382,9 +448,81 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
         setCrawlerResult(null);
         setCrawlProgress(10);
 
-        await websocketService.connect().catch(() => {});
-        try { await websocketService.ensureAuthenticated(); } catch {}
+        const wsOk = await websocketService.ensureAuthenticatedWithRecovery();
+        if (!wsOk) {
+          setCrawlWarning(
+            '实时进度连接或认证未就绪，已启用服务端历史轮询兜底；若长时间仍停在「爬取中」，请打开数据分析页点刷新。'
+          );
+        }
         unsubscribeRef.current = websocketService.subscribeToCrawl(id, wsHandlerWrapperRef.current);
+
+        clearHistoryPoll();
+        const pollStarted = Date.now();
+        const pollMaxMs = 3 * 60 * 1000;
+        const pollEveryMs = 4000;
+        historyPollTimerRef.current = setInterval(() => {
+          if (activeCrawlIdRef.current !== id || crawlerStatusRef.current !== 'running') {
+            clearHistoryPoll();
+            return;
+          }
+          if (Date.now() - pollStarted > pollMaxMs) {
+            clearHistoryPoll();
+            setCrawlWarning(
+              (w) =>
+                w ||
+                '超过 3 分钟未收到完成推送；若后端已跑完，请在数据分析页刷新或检查 WebSocket。'
+            );
+            return;
+          }
+          void (async () => {
+            try {
+              const res = await crawlerApi.getHistory(80);
+              const body = res.data as { data?: unknown };
+              const list = Array.isArray(body.data) ? body.data : [];
+              const row = list.find(
+                (x: { id?: string }) => x && String(x.id) === id
+              ) as Record<string, unknown> | undefined;
+              if (!row) return;
+              clearHistoryPoll();
+              if (unsubscribeRef.current) {
+                unsubscribeRef.current();
+                unsubscribeRef.current = null;
+              }
+              activeCrawlIdRef.current = null;
+              activeRunMetaRef.current = null;
+              setRunningJobMeta(null);
+              const stLower = String(row.status || '').toLowerCase();
+              const errStr =
+                row.error != null && String(row.error).trim() !== ''
+                  ? String(row.error)
+                  : '';
+              if (errStr || stLower === 'failed') {
+                setCrawlerStatus('error');
+                setCrawlProgress(0);
+                const meta = { id, url: targetUrl, type: crawlerType, depth: crawlerDepth };
+                const errResult = {
+                  id,
+                  url: (row.url as string) || meta.url,
+                  type: (row.type as string) || meta.type,
+                  depth: (row.depth as number) ?? meta.depth,
+                  items: (row.items as number) ?? 0,
+                  time: (row.time as number) ?? 0,
+                  error: errStr || '爬取失败'
+                };
+                setCrawlerResult(errResult);
+                saveCrawlHistoryRef.current(errResult);
+              } else {
+                const merged = normalizeResult(row, id);
+                setCrawlerResult(merged);
+                setCrawlProgress(100);
+                setCrawlerStatus('completed');
+                saveCrawlHistoryRef.current(merged);
+              }
+            } catch {
+              /* 下一轮继续 */
+            }
+          })();
+        }, pollEveryMs);
       } else if (result.error || st === 'failed') {
         // --- 失败 ---
         const normalized = normalizeResult(result, id);
@@ -421,12 +559,14 @@ function useCrawlerStore(): [CrawlerState, CrawlerActions] {
 
   // 处理重置
   const handleReset = () => {
+    clearHistoryPoll();
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
     }
     activeCrawlIdRef.current = null;
     activeRunMetaRef.current = null;
+    setCrawlWarning(null);
     setCrawlerType('link');
     setTargetUrl('');
     setCrawlerDepth(2);

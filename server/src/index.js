@@ -18,6 +18,7 @@ const { authMiddleware } = require('./middleware/auth');
 // 导入路由
 const authRoutes = require('./routes/auth');
 const { runCrawler } = require('./services/crawlRunner');
+const { listenFromBasePort } = require('./devListen');
 
 function validateUrl(url) {
   try {
@@ -47,7 +48,8 @@ function validateDepth(depth) {
 
 // 创建 Express 应用
 const app = express();
-const port = process.env.PORT || 3001; // 与前端 VITE_API_BASE_URL / Vite 代理一致
+/** 首选端口；若被占用 devListen 会自动尝试 base+1…（见 devListen.js） */
+const baseListenPort = parseInt(String(process.env.PORT || '3001'), 10) || 3001;
 
 // 配置中间件
 app.use(cors());
@@ -111,6 +113,19 @@ app.post('/api/crawl', async (req, res) => {
       const result = await runCrawler(type, url, depthNum);
       result.id = crawlId;
       result.status = result.error ? 'failed' : 'completed';
+      const dataArr = Array.isArray(result.data) ? result.data : [];
+      const cappedData = dataArr.length > 500 ? dataArr.slice(0, 500) : dataArr;
+      db.saveCrawlHistory({
+        id: crawlId,
+        type,
+        targetUrl: url,
+        depth: depthNum,
+        totalItems: result.items || 0,
+        time: result.time || 0,
+        data: cappedData,
+        error: result.error || null,
+        userId: req.user?.userId
+      }).catch((err) => console.error('同步爬取写入历史失败:', err));
       return res.json(result);
     }
   } catch (error) {
@@ -401,17 +416,16 @@ async function startServer() {
       console.warn('数据库连接失败，将使用本地存储作为备选方案');
     }
 
-    // 启动 Express 服务器
-    const server = app.listen(port, () => {
-      console.log(`后端服务运行在 http://localhost:${port}`);
-      console.log('可用的 API 端点:');
-      console.log('POST /api/crawl - 执行爬虫');
-      console.log('GET /api/history - 获取爬取历史记录');
-      console.log('DELETE /api/history/:id - 删除指定爬取历史记录');
-      console.log('DELETE /api/history - 清空所有爬取历史记录');
-      console.log('GET /api/health - 健康检查');
-      console.log('WebSocket: ws://localhost:3001/ws - 实时进度推送');
-    });
+    const { server, port } = await listenFromBasePort(app, baseListenPort);
+
+    console.log(`后端服务运行在 http://localhost:${port}`);
+    console.log('可用的 API 端点:');
+    console.log('POST /api/crawl - 执行爬虫');
+    console.log('GET /api/history - 获取爬取历史记录');
+    console.log('DELETE /api/history/:id - 删除指定爬取历史记录');
+    console.log('DELETE /api/history - 清空所有爬取历史记录');
+    console.log('GET /api/health - 健康检查');
+    console.log(`WebSocket: ws://localhost:${port}/ws - 实时进度推送`);
 
     // 初始化 WebSocket 服务并注入队列（打破循环依赖）
     const wsService = new WebSocketService(server);

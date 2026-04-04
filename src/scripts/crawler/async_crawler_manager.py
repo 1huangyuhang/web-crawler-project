@@ -1,9 +1,16 @@
 # 异步爬虫管理器 - 负责协调不同类型的异步爬虫
 
 import asyncio
-import sys
 import json
+import os
+import sys
 from typing import Dict, Any
+
+# 由 Node spawn、或工作目录非脚本目录时，确保能导入同目录下的 async_* 模块
+_CRAWLER_DIR = os.path.dirname(os.path.abspath(__file__))
+if _CRAWLER_DIR not in sys.path:
+    sys.path.insert(0, _CRAWLER_DIR)
+
 from async_content_crawler import AsyncContentCrawler
 from async_image_crawler import AsyncImageCrawler, AsyncLinkCrawler
 from async_base_crawler import CrawlConfig

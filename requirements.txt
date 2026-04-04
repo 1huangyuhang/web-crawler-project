@@ -1,4 +1,5 @@
-# 爬虫依赖库
+# 爬虫依赖库（异步爬虫 async_* 需要 aiohttp + beautifulsoup4）
+aiohttp>=3.9.0,<4
 beautifulsoup4==4.12.3
 requests==2.31.0
 urllib3==2.2.1

@@ -9,6 +9,40 @@
 
 const Queue = require('bull');
 const { runCrawler } = require('./crawlRunner');
+const db = require('../db');
+
+/** 写入 DB 时限制 data 数组长度，避免单任务撑爆 Prisma/DB */
+const MAX_HISTORY_DATA_ITEMS = 500;
+
+function sliceDataForDb(data) {
+  if (!Array.isArray(data)) return [];
+  return data.length > MAX_HISTORY_DATA_ITEMS ? data.slice(0, MAX_HISTORY_DATA_ITEMS) : data;
+}
+
+/**
+ * 队列任务结束后写入爬取历史（失败不抛，避免拖垮 worker）
+ */
+async function persistCrawlToDb({ crawlId, type, url, depth, result, errorMessage }) {
+  const r = result && typeof result === 'object' ? result : {};
+  const items = typeof r.items === 'number' ? r.items : 0;
+  const time = typeof r.time === 'number' ? r.time : 0;
+  const err = errorMessage != null && String(errorMessage).trim() !== '' ? String(errorMessage) : r.error || null;
+  const crawlData = {
+    id: crawlId,
+    type,
+    targetUrl: url,
+    depth,
+    totalItems: items,
+    time,
+    data: sliceDataForDb(r.data),
+    error: err
+  };
+  try {
+    await db.saveCrawlHistory(crawlData);
+  } catch (e) {
+    console.error('[QueueService] 保存爬取历史到数据库失败:', e.message || e);
+  }
+}
 
 function pushCrawlProgress(crawlId, progress, currentUrl, stats) {
   try {
@@ -62,10 +96,40 @@ class QueueService {
         });
         result.crawlId = crawlId;
 
+        if (result.error) {
+          const em = String(result.error);
+          await job.progress(100);
+          pushCrawlProgress(crawlId, 0, url, {
+            message: '爬虫任务失败',
+            error: em,
+            result
+          });
+          await persistCrawlToDb({
+            crawlId,
+            type,
+            url,
+            depth,
+            result,
+            errorMessage: em
+          });
+          const bizErr = new Error(em);
+          bizErr._crawlHistorySaved = true;
+          throw bizErr;
+        }
+
         await job.progress(100);
         pushCrawlProgress(crawlId, 100, url, {
           message: '爬虫任务已完成',
           result: result
+        });
+
+        await persistCrawlToDb({
+          crawlId,
+          type,
+          url,
+          depth,
+          result,
+          errorMessage: null
         });
 
         console.log(`爬虫任务 ${job.id} 完成`);
@@ -76,6 +140,16 @@ class QueueService {
           message: '爬虫任务失败',
           error: error.message
         });
+        if (!error._crawlHistorySaved) {
+          await persistCrawlToDb({
+            crawlId,
+            type,
+            url,
+            depth,
+            result: {},
+            errorMessage: error.message || String(error)
+          });
+        }
         throw error;
       }
     });

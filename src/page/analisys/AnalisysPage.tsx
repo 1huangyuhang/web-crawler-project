@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { crawlerApi } from '../../services/api';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,39 @@ function loadHistory(): CrawlHistoryItem[] {
 }
 function saveHistory(items: CrawlHistoryItem[]) {
   try { localStorage.setItem('crawlHistory', JSON.stringify(items)); } catch {}
+}
+
+function mapServerRowToItem(row: Record<string, unknown>): CrawlHistoryItem {
+  const t = String(row.type || 'link').toLowerCase();
+  const type: CrawlHistoryItem['type'] =
+    t === 'content' || t === 'image' ? t : 'link';
+  return {
+    id: String(row.id || ''),
+    timestamp: typeof row.timestamp === 'number' ? row.timestamp : 0,
+    url: String(row.url || ''),
+    type,
+    depth: typeof row.depth === 'number' ? row.depth : 0,
+    items: typeof row.items === 'number' ? row.items : 0,
+    time: typeof row.time === 'number' ? row.time : 0,
+    data: Array.isArray(row.data) ? row.data : [],
+    error: row.error != null && String(row.error).trim() !== '' ? String(row.error) : undefined,
+  };
+}
+
+/** 按 id 合并；同 id 保留时间戳更新的那条（队列落库后通常比本地新） */
+function mergeHistory(local: CrawlHistoryItem[], server: CrawlHistoryItem[]): CrawlHistoryItem[] {
+  const m = new Map<string, CrawlHistoryItem>();
+  const newer = (a: CrawlHistoryItem, b: CrawlHistoryItem) =>
+    (b.timestamp || 0) >= (a.timestamp || 0) ? b : a;
+  for (const h of local) {
+    if (h.id) m.set(h.id, h);
+  }
+  for (const h of server) {
+    if (!h.id) continue;
+    const ex = m.get(h.id);
+    m.set(h.id, ex ? newer(ex, h) : h);
+  }
+  return [...m.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, 100);
 }
 
 type ViewMode = 'table' | 'card' | 'list';
@@ -456,8 +490,50 @@ const AnalisysPage = () => {
   const [sortAsc, setSortAsc] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => { setHistory(loadHistory()); }, []);
+  const refreshHistory = useCallback(async () => {
+    setRefreshing(true);
+    const local = loadHistory();
+    try {
+      const res = await crawlerApi.getHistory(100);
+      const env = res.data as { data?: unknown[] };
+      const rows = Array.isArray(env.data) ? env.data : [];
+      const serverItems = rows.map((r) =>
+        mapServerRowToItem(r as Record<string, unknown>)
+      );
+      const merged = mergeHistory(local, serverItems);
+      setHistory(merged);
+      saveHistory(merged.slice(0, 50));
+    } catch {
+      setHistory(local);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
+
+  useEffect(() => {
+    const run = () => {
+      void refreshHistory();
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') run();
+    };
+    window.addEventListener('focus', run);
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('crawlHistoryUpdated', run);
+    window.addEventListener('storage', run);
+    return () => {
+      window.removeEventListener('focus', run);
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('crawlHistoryUpdated', run);
+      window.removeEventListener('storage', run);
+    };
+  }, [refreshHistory]);
 
   const del = useCallback((id: string) => {
     setHistory(prev => {
@@ -506,6 +582,14 @@ const AnalisysPage = () => {
           <p className="text-xs mt-0.5" style={{ color: 'var(--c-text-muted)' }}>管理和分析爬取历史</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={refreshing}
+            onClick={() => void refreshHistory()}
+          >
+            {refreshing ? '刷新中…' : '刷新'}
+          </button>
           {history.length > 0 && (
             <>
               <button className="btn btn-secondary btn-sm" onClick={exportJSON}>导出 JSON</button>

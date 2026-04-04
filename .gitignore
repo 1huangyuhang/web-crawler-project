@@ -34,3 +34,6 @@ __pycache__/
 
 .cursor/
 .claude/
+
+# 本地 dev 后端实际监听端口（由 server 写入，供 Vite 代理）
+.dev-backend-port

@@ -15,13 +15,17 @@ function sanitizeInput(input) {
 }
 
 const ASYNC_CRAWLER_SCRIPT_PATH = path.join(__dirname, '../../../src/scripts/crawler/async_crawler_manager.py');
+const CRAWLER_SCRIPT_DIR = path.dirname(ASYNC_CRAWLER_SCRIPT_PATH);
+const REPO_ROOT = path.join(__dirname, '../../..');
 
 /**
  * 按优先级查找可用的 Python 解释器：venv > python3 > python
  */
 function findPython() {
-  const venvPath = path.join(__dirname, '../../../venv/bin/python3');
-  if (fs.existsSync(venvPath)) return venvPath;
+  const venvUnix = path.join(REPO_ROOT, 'venv/bin/python3');
+  const venvWin = path.join(REPO_ROOT, 'venv/Scripts/python.exe');
+  if (fs.existsSync(venvUnix)) return venvUnix;
+  if (fs.existsSync(venvWin)) return venvWin;
 
   for (const cmd of ['python3', 'python']) {
     try {
@@ -29,6 +33,9 @@ function findPython() {
       return cmd;
     } catch { /* 不可用 */ }
   }
+  console.warn(
+    '[crawlRunner] 未检测到项目 venv，使用系统 python3。若报 ModuleNotFoundError，请在仓库根目录执行: python3 -m venv venv && ./venv/bin/pip install -r requirements.txt'
+  );
   return 'python3';
 }
 
@@ -59,7 +66,11 @@ function runCrawler(crawlerType, url, depth, options = {}) {
       ];
       console.log('执行爬虫命令:', pythonPath, args);
 
-      const pythonProcess = spawn(pythonPath, args);
+      const pyPathEnv = [CRAWLER_SCRIPT_DIR, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+      const pythonProcess = spawn(pythonPath, args, {
+        cwd: CRAWLER_SCRIPT_DIR,
+        env: { ...process.env, PYTHONPATH: pyPathEnv }
+      });
       let output = '';
       let errorOutput = '';
 

@@ -177,6 +177,30 @@ class WebSocketClient {
   /**
    * 等待服务端 auth 成功后再发 subscribe（避免竞态导致「未经认证」）
    */
+  /**
+   * 未连接则先 connect，再等待 auth；用于队列爬取开始前与重连后恢复订阅。
+   */
+  async ensureAuthenticatedWithRecovery(timeoutMs = 8000): Promise<boolean> {
+    try {
+      if (this.ws?.readyState !== WebSocket.OPEN) {
+        await this.connect();
+      }
+      await this.ensureAuthenticated(timeoutMs);
+      this.processMessageQueue();
+      for (const crawlId of this.subscriptions) {
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.send({
+            type: 'subscribe:crawl',
+            payload: { crawlId }
+          });
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   ensureAuthenticated(timeoutMs = 8000): Promise<void> {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       return Promise.reject(new Error('WebSocket 未连接'));
@@ -402,6 +426,8 @@ export const websocketService = {
   connect: () => wsClient.connect(),
   disconnect: () => wsClient.disconnect(),
   ensureAuthenticated: (timeoutMs?: number) => wsClient.ensureAuthenticated(timeoutMs),
+  ensureAuthenticatedWithRecovery: (timeoutMs?: number) =>
+    wsClient.ensureAuthenticatedWithRecovery(timeoutMs),
   subscribeToCrawl: (crawlId: string, handler: (data: any) => void) => wsClient.subscribeToCrawl(crawlId, handler),
   unsubscribeFromCrawl: (crawlId: string, handler: (data: any) => void) => wsClient.unsubscribeFromCrawl(crawlId, handler),
   onConnectionChange: (callback: (connected: boolean) => void) => wsClient.onConnectionChange(callback),
