@@ -2,7 +2,7 @@
 
 面向开发与实验的网页爬虫控制台：在浏览器里配置任务、查看实时进度与历史数据，可选接入 AI 自然语言查库。**默认开发路径**为「React 前端 + Node 网关（队列 / WebSocket）+ Python 爬虫脚本」；`backend/` 下的 FastAPI 提供扩展能力（如 `/api/v1/ai`），与 Node 并行使用。
 
-**延伸阅读**：[架构深度说明](ARCHITECTURE_DOCUMENT.md) · [Node HTTP API 明细](API_DOCUMENTATION.md) · [文档索引](docs/README.md)
+**延伸阅读**：[全项目架构蓝图](docs/PROJECT_BLUEPRINT.md) · [架构深度说明](ARCHITECTURE_DOCUMENT.md) · [Node HTTP API 明细](API_DOCUMENTATION.md) · [文档索引](docs/README.md)
 
 ---
 
