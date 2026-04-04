@@ -8,7 +8,69 @@
 
 ---
 
-## 1. 准备运行环境
+## 0. 分支约定（生产必须用 `main`）
+
+- **生产环境只从 `main` 分支部署。** 合并与发版流程应在本地或 CI 上先把变更合入 `main`，再在服务器拉取。
+- 服务器上固定使用：
+
+```bash
+git fetch origin
+git checkout main
+git pull origin main
+```
+
+- 不要在生产机长期停留在 `develop`、功能分支或 detached HEAD；避免「线上代码与仓库主线不一致」。
+
+下文「推荐部署流程」默认你已处于 **`main`** 且与 `origin/main` 同步。
+
+---
+
+## 1. 推荐部署流程（最熟悉、单机一台）
+
+这是团队里最常用的一条路径：**一台 Linux 云主机（或长期运行的机器）**、`main` 分支、同机 Node + Redis +（可选）PostgreSQL +（可选）FastAPI；对外先用 HTTP 端口，需要域名时再套 **Nginx + Let’s Encrypt**（见第 7 节）。
+
+在服务器项目根目录依次执行（按需跳过数据库 / FastAPI）：
+
+```bash
+# 1) 代码：只用 main
+git clone <你的仓库 URL> spiderx && cd spiderx
+git checkout main && git pull origin main
+
+# 2) 数据库（可选，与默认连接串一致时）
+docker compose up -d postgres
+
+# 3) 环境变量（勿提交 deploy/production.env）
+cp deploy/production.env.example deploy/production.env
+# 编辑 deploy/production.env：至少确认 NODE_ENV、PORT、LISTEN_HOST、DATABASE_URL、REDIS_*、JWT_SECRET、API_KEY
+
+# 4) 同域部署时无需 .env.production；若前后端分域，先配 .env.production 再构建
+npm install
+npm install --prefix server
+
+# 5) 构建静态资源
+npm run build
+
+# 6) 启动 Node 生产进程（二选一）
+set -a && source deploy/production.env && set +a && npm run start:prod
+
+# 或使用 PM2 常驻（环境变量可写在 ecosystem 或先 export）
+# NODE_ENV=production PORT=3001 LISTEN_HOST=0.0.0.0 pm2 start server/src/index.js --name spiderx
+# pm2 save && pm2 startup
+```
+
+**后续可选——AI / 模板页**：另开进程启动 FastAPI，与 `FASTAPI_URL` 一致：
+
+```bash
+bash backend/scripts/run_dev.sh
+```
+
+**后续可选——公网 HTTPS**：Node 仅监听 `127.0.0.1:3001`，前面加 Nginx 443，按本文 **第 7 节** 与 [`deploy/nginx-spiderx.conf.example`](../deploy/nginx-spiderx.conf.example) 配置，并用 `certbot --nginx` 申请证书。
+
+**验证**：`curl -s http://127.0.0.1:3001/api/health` 应返回 JSON；手机局域网访问 `http://<服务器IP>:3001`（防火墙放行见第 6 节）。
+
+---
+
+## 2. 准备运行环境
 
 在同一台服务器上需要：
 
@@ -28,7 +90,7 @@ docker compose up -d postgres
 
 ---
 
-## 2. 构建前端
+## 3. 构建前端
 
 在项目根目录：
 
@@ -41,7 +103,7 @@ npm run build
 
 ---
 
-## 3. 环境变量（汇总）
+## 4. 环境变量（汇总）
 
 ### 前端构建（Vite，仓库根目录）
 
@@ -78,7 +140,7 @@ set -a && source deploy/production.env && set +a && npm run start:prod
 
 ---
 
-## 4. 安装依赖并启动生产进程
+## 5. 安装依赖并启动生产进程
 
 ```bash
 npm install --prefix server
@@ -100,7 +162,7 @@ bash backend/scripts/run_dev.sh
 
 ---
 
-## 5. 防火墙放行
+## 6. 防火墙放行
 
 按你的系统**放行 `PORT`（及 Nginx 的 80/443）**。爬虫控制台暴露在公网风险高，优先仅局域网或配合 VPN / 隧道。
 
@@ -135,7 +197,7 @@ sudo firewall-cmd --reload
 
 ---
 
-## 6. HTTPS（推荐：Nginx 终止 TLS + 反代 Node）
+## 7. HTTPS（推荐：Nginx 终止 TLS + 反代 Node）
 
 1. 将 [`deploy/nginx-spiderx.conf.example`](../deploy/nginx-spiderx.conf.example) 复制到服务器，把 `server_name` 改成你的域名，`upstream` 端口与 `PORT` 一致。
 2. 安装证书（Let’s Encrypt）：
@@ -168,7 +230,7 @@ your.domain.com {
 
 ---
 
-## 7. 手机访问（局域网）
+## 8. 手机访问（局域网）
 
 1. 手机与服务器同一 Wi‑Fi（或已打通端口映射 / 隧道）。
 2. 查服务器局域网 IP：`ipconfig getifaddr en0`（macOS）或 `hostname -I`（Linux）。
@@ -178,7 +240,7 @@ your.domain.com {
 
 ---
 
-## 8. 常见问题
+## 9. 常见问题
 
 - **页面空白**：已执行 `npm run build` 且存在 `dist/index.html`；`NODE_ENV=production`。
 - **AI/模板 502**：FastAPI 已监听且 `FASTAPI_URL` 正确。

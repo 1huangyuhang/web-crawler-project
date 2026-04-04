@@ -4,7 +4,7 @@
 |---|---|
 | [README.md](../README.md) | **主入口**：安装、启动命令、端口、环境变量、双后端、**完整结构+技术栈+架构一图**、功能地图、常见问题 |
 | [STARTUP.md](STARTUP.md) | **启动说明**：前后端与可选 FastAPI 的安装步骤、端口、分终端启动、健康检查与排错清单 |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | **生产部署**：构建、`npm run start:prod`、防火墙、HTTPS（Nginx/Caddy）、环境变量、手机访问 |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | **生产部署**：**仅 `main` 分支上线**；推荐单机流程（clone→env→build→PM2）、防火墙、HTTPS、环境变量 |
 | [deploy/production.env.example](../deploy/production.env.example) | Node 生产环境变量模板（复制为 `deploy/production.env`，勿提交） |
 | [deploy/nginx-spiderx.conf.example](../deploy/nginx-spiderx.conf.example) | Nginx 反代 + WebSocket 配置示例 |
 | [PROJECT_BLUEPRINT.md](PROJECT_BLUEPRINT.md) | **全项目架构蓝图**：目录职责、功能矩阵、技术栈、Mermaid 系统图与 Hash 路由图、数据流与主要源文件索引（新手优先） |

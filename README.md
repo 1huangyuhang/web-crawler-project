@@ -149,12 +149,14 @@ OpenAPI：**http://127.0.0.1:8000/docs**
 
 ### 3. 构建与生产运行（手机 / 局域网访问）
 
+**生产部署请始终基于 `main` 分支**（服务器上 `git checkout main && git pull origin main`），勿用功能分支直接上线。推荐的一条龙命令与说明见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** 第 0～1 节。
+
 ```bash
 npm run build
 npm run start:prod
 ```
 
-默认 **`LISTEN_HOST=0.0.0.0`**、**`PORT=3001`**：同一 Wi‑Fi 下用手机浏览器打开 **`http://<电脑局域网IP>:3001`** 即可。Node 会托管 `dist/`、转发 **`/api/v1`** 到本机 FastAPI（**`FASTAPI_URL`**，默认 `http://127.0.0.1:8000`）。完整步骤、防火墙、HTTPS（Nginx/Caddy）、环境变量见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**；Node 运行时变量模板见 **[deploy/production.env.example](deploy/production.env.example)**，Nginx 示例见 **[deploy/nginx-spiderx.conf.example](deploy/nginx-spiderx.conf.example)**。
+默认 **`LISTEN_HOST=0.0.0.0`**、**`PORT=3001`**：同一 Wi‑Fi 下用手机浏览器打开 **`http://<电脑局域网IP>:3001`** 即可。Node 会托管 `dist/`、转发 **`/api/v1`** 到本机 FastAPI（**`FASTAPI_URL`**，默认 `http://127.0.0.1:8000`）。防火墙、HTTPS（Nginx/Caddy）、环境变量见 **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**；Node 运行时变量模板见 **[deploy/production.env.example](deploy/production.env.example)**，Nginx 示例见 **[deploy/nginx-spiderx.conf.example](deploy/nginx-spiderx.conf.example)**。
 
 仅本地预览构建结果（无网关）：`npm run preview`。
 
