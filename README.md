@@ -6,6 +6,40 @@
 
 ---
 
+## 界面预览
+
+以下为 SpiderX 控制台主要界面截图，源文件位于仓库 [assets/](assets/) 目录。
+
+### 首页
+
+![SpiderX 首页仪表盘](assets/首页.jpg)
+
+### 新建爬虫任务
+
+![SpiderX 新建爬虫任务](assets/新建任务.jpg)
+
+### 爬虫模板库
+
+![SpiderX 爬虫模板库](assets/模版库.jpg)
+
+### 数据分析
+
+![SpiderX 数据分析 - 任务与统计](assets/数据分析.jpg)
+
+![SpiderX 数据分析 - 详情与表格](assets/数据分析2.jpg)
+
+![SpiderX 数据分析 - 数据预览](assets/数据分析3.jpg)
+
+### AI 智能分析
+
+![SpiderX AI 智能分析](assets/Ai分析.jpg)
+
+### 系统设置
+
+![SpiderX 系统设置](assets/设置.jpg)
+
+---
+
 ## 技术栈（与仓库依赖一致）
 
 | 层 | 技术 |
