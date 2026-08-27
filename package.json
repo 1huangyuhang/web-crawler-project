@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "start": "./dev.sh start",
+    "stop": "./dev.sh stop",
+    "restart": "./dev.sh restart",
+    "status": "./dev.sh status",
     "dev": "concurrently -k -n server,client,fastapi -c cyan,magenta,yellow \"npm run dev:server\" \"wait-on -t 120000 .dev-backend-port && npm run dev:vite\" \"npm run dev:fastapi\"",
     "dev:node-vite": "concurrently -k -n server,client -c cyan,magenta \"npm run dev:server\" \"wait-on -t 120000 .dev-backend-port && npm run dev:vite\"",
     "dev:vite": "vite",
